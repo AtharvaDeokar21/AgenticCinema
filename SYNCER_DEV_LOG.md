@@ -86,3 +86,22 @@ GEMINI_API_KEY=your_key pytest tests/agents/syncer/ -v -s
 ---
 
 *Log updated: Phase 4 complete — all phases done*
+
+---
+
+## Post-Phase Additions
+
+### tools.py — File API parameter fix
+- [x] `tools.py: upload_video_to_gemini()` — fixed `files.upload(path=)` → `files.upload(file=)`
+      to match the current google-genai SDK parameter name (user-applied correction)
+
+### Documentation
+- [x] `agents/syncer/README.md` — comprehensive documentation created:
+      - §1 Plain-English overview (the problem, what the agent does, why it matters)
+      - §2 Architecture map (ASCII flow diagram + file role summary table)
+      - §3 Technical deep dive (VFR/CFR maths, File API lifecycle, schema stamping,
+        mouth-motion fallback rules)
+      - §4 Test runner instructions (prerequisites, env setup, fixture explanation)
+      - §5 DEMO_MODE circuit breaker pattern (offline mock implementation guide)
+      - §6 Full file inventory tree
+
