@@ -1,6 +1,6 @@
 import asyncio
 
-from app.shared.tools.parallel import ParallelSearch
+from app.shared.tools.parallel.search import ParallelSearch
 
 
 async def main():
@@ -8,19 +8,19 @@ async def main():
 
     response = await search.search(
         search_queries=[
-            "Indian short film storytelling trends",
-            "Indian cinema audience trends 2026",
-            "Mumbai filmmaking cultural trends",
+            "Mumbai night photography locations",
+            "Mumbai night culture",
         ],
         objective=(
-            "Research current Indian filmmaking and storytelling "
-            "trends that could inspire a short-form film concept."
+            "Find factual information useful for a cinematic script "
+            "about a photographer discovering Mumbai at night."
         ),
-        mode="basic",
     )
 
-    print("\n=== PARALLEL SEARCH RESULTS ===\n")
+    print("\nRESPONSE TYPE:")
+    print(type(response))
 
+    print("\nRESPONSE:")
     print(response)
 
     await search.client.close()
