@@ -209,7 +209,7 @@ def upload_video_to_gemini(
 
     print(f"\n[upload_video_to_gemini] Uploading: {video_path!r}")
 
-    file_ref = client.client.files.upload(path=video_path)
+    file_ref = client.client.files.upload(file=video_path)
 
     print(f"[upload_video_to_gemini] Upload accepted — file name: {file_ref.name}")
 
