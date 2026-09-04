@@ -1,26 +1,44 @@
-from typing import Any, Dict
+from typing import List, Optional
 
 from .client import ParallelClient
 
 
 class ParallelSearch:
-    """Runtime web search through Parallel Web Systems."""
+    """
+    Runtime web search through Parallel Web Systems.
+
+    This is the primary Parallel integration required
+    by the Agentic Cinema hackathon.
+    """
 
     def __init__(self):
         self.client = ParallelClient()
 
     async def search(
         self,
-        query: str,
-        **kwargs: Any,
-    ) -> Dict:
+        search_queries: List[str],
+        objective: Optional[str] = None,
+        mode: str = "basic",
+    ):
         """
-        Search the web using Parallel.
+        Search the live web through Parallel.
 
-        The exact API payload will be finalized against the
-        current Parallel Search API contract.
+        Parameters
+        ----------
+        search_queries:
+            Concise search probes.
+
+        objective:
+            Overall research objective.
+
+        mode:
+            Parallel search quality/latency mode.
         """
 
-        raise NotImplementedError(
-            "Implement using the verified Parallel Search API contract."
+        response = await self.client.client.search(
+            search_queries=search_queries,
+            objective=objective,
+            mode=mode,
         )
+
+        return response

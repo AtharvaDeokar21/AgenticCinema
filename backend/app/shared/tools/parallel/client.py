@@ -1,40 +1,22 @@
-import httpx
+from parallel import AsyncParallel
 
 from app.config import get_settings
 
 
 class ParallelClient:
-    """Shared client for Parallel Web Systems APIs."""
+    """Shared Parallel Web Systems client."""
 
     def __init__(self):
         settings = get_settings()
 
-        self.api_key = settings.parallel_api_key
-        self.base_url = "https://api.parallel.ai"
-
-    @property
-    def headers(self) -> dict:
-        return {
-            "x-api-key": self.api_key,
-            "Content-Type": "application/json",
-        }
-
-    async def request(
-        self,
-        method: str,
-        endpoint: str,
-        **kwargs,
-    ):
-        url = f"{self.base_url}{endpoint}"
-
-        async with httpx.AsyncClient() as client:
-            response = await client.request(
-                method,
-                url,
-                headers=self.headers,
-                **kwargs,
+        if not settings.parallel_api_key:
+            raise ValueError(
+                "PARALLEL_API_KEY is not configured."
             )
 
-            response.raise_for_status()
+        self.client = AsyncParallel(
+            api_key=settings.parallel_api_key,
+        )
 
-            return response.json()
+    async def close(self):
+        await self.client.close()
