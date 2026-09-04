@@ -1,3 +1,5 @@
+import base64
+from pathlib import Path
 from typing import Any, Optional
 
 from google import genai
@@ -30,6 +32,13 @@ class GeminiClient:
 
         self.default_model = settings.gemini_model
 
+    def upload_file(self, file_path: str):
+        """Upload a local media file through the shared Gemini client."""
+        path = Path(file_path)
+        if not path.is_file():
+            raise FileNotFoundError(f"Gemini upload file not found: {path}")
+        return self.client.files.upload(file=path)
+
     def generate(
         self,
         prompt: str,
@@ -45,6 +54,41 @@ class GeminiClient:
             contents=prompt,
             **kwargs,
         )
+
+    def generate_tts(
+        self,
+        text: str,
+        *,
+        voice: str = "Kore",
+        model: str = "gemini-3.1-flash-tts-preview",
+    ) -> bytes:
+        """Generate raw PCM speech using Gemini 3.1 Flash TTS."""
+
+        from google.genai import types
+
+        response = self.client.models.generate_content(
+            model=model,
+            contents=text,
+            config=types.GenerateContentConfig(
+                response_modalities=["AUDIO"],
+                speech_config=types.SpeechConfig(
+                    voice_config=types.VoiceConfig(
+                        prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                            voice_name=voice,
+                        )
+                    )
+                ),
+            ),
+        )
+
+        try:
+            data = response.candidates[0].content.parts[0].inline_data.data
+        except (AttributeError, IndexError, TypeError) as exc:
+            raise ValueError("Gemini TTS response did not contain audio data") from exc
+
+        if isinstance(data, str):
+            return base64.b64decode(data)
+        return data
 
     def generate_structured(
         self,
