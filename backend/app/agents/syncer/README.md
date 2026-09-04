@@ -248,7 +248,7 @@ In all these cases the agent does **not crash** — it produces a placement with
 
 The `unplaced_beat_ids` field exists for situations where Gemini cannot even produce a fallback estimate (e.g. the creator's face never appears on screen during that beat's window). These beats require human intervention and the field exposes them explicitly rather than silently dropping them.
 
-**The confidence threshold of 0.5** is a deliberate design choice: above 0.5, the automated placement is trusted; below 0.5, the placement is still provided (better than nothing) but flagged in `notes` so a human reviewer knows to check it.
+The **confidence threshold of 0.5** is a deliberate design choice: above 0.5, the automated placement is trusted; below 0.5, the placement is still provided (better than nothing) but flagged in `notes` so a human reviewer knows to check it.
 
 ---
 
@@ -256,8 +256,14 @@ The `unplaced_beat_ids` field exists for situations where Gemini cannot even pro
 
 ### System Prerequisites
 
+You need **Python 3.11+** and **ffmpeg** installed on the host machine.
+
+---
+
+#### 🍎 macOS
+
 ```bash
-# macOS
+# Install ffmpeg and Python 3.11 via Homebrew
 brew install ffmpeg python@3.11
 
 # Verify
@@ -265,12 +271,63 @@ ffmpeg -version | head -1
 python3.11 --version
 ```
 
+---
+
+#### 🐧 Linux (Ubuntu / Debian)
+
+```bash
+# Update package index and install ffmpeg
+sudo apt-get update
+sudo apt-get install -y ffmpeg
+
+# Install Python 3.11 (if not already available)
+sudo apt-get install -y python3.11 python3.11-venv python3.11-pip
+
+# Verify
+ffmpeg -version | head -1
+python3.11 --version
+```
+
+> **Other distros:** Use your package manager — `dnf install ffmpeg python3.11` (Fedora/RHEL),
+> `pacman -S ffmpeg python` (Arch). Make sure ffmpeg includes libx264 support
+> (`ffmpeg -encoders | grep libx264`).
+
+---
+
+#### 🪟 Windows
+
+**Option A — Winget (Windows 11 / Windows 10 with App Installer):**
+
+```powershell
+# Run in PowerShell (as Administrator if needed)
+winget install -e --id Gyan.FFmpeg
+winget install -e --id Python.Python.3.11
+```
+
+**Option B — Manual install:**
+
+1. Download ffmpeg from [https://ffmpeg.org/download.html](https://ffmpeg.org/download.html)
+   → *Windows builds by gyan.dev* → `ffmpeg-release-full.zip`
+2. Extract to `C:\ffmpeg\` and add `C:\ffmpeg\bin` to your **System PATH**
+3. Download Python 3.11 from [https://python.org](https://python.org) and install
+   (check *"Add to PATH"* during setup)
+
+```powershell
+# Verify (in a new PowerShell/CMD window after PATH update)
+ffmpeg -version
+python --version
+```
+
+---
+
 ### Environment Setup
+
+#### 🍎 macOS / 🐧 Linux
 
 ```bash
 cd backend
 
-# Create and activate virtual environment (if not already done)
+# Create and activate virtual environment
 python3.11 -m venv .venv
 source .venv/bin/activate
 
@@ -281,14 +338,59 @@ pip install -r requirements.txt
 export GEMINI_API_KEY="your-api-key-here"
 ```
 
+#### 🪟 Windows — PowerShell
+
+```powershell
+cd backend
+
+# Create and activate virtual environment
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+
+# If you see an execution policy error, run this first (once per machine):
+# Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Set your Gemini API key (current session only)
+$env:GEMINI_API_KEY = "your-api-key-here"
+```
+
+#### 🪟 Windows — CMD
+
+```cmd
+cd backend
+
+.venv\Scripts\activate.bat
+
+pip install -r requirements.txt
+
+set GEMINI_API_KEY=your-api-key-here
+```
+
+---
+
 ### Execution
 
+The pytest command is identical on all platforms:
+
 ```bash
-# Run the Syncer Agent integration tests with full output
+# macOS / Linux
+pytest tests/agents/syncer/ -v -s
+
+# Windows (PowerShell or CMD — same command)
 pytest tests/agents/syncer/ -v -s
 ```
 
-Expected output structure:
+> **Tip:** If `pytest` is not found after activating the venv, use the module form:
+> ```bash
+> python -m pytest tests/agents/syncer/ -v -s
+> ```
+
+---
+
+Expected output structure (all platforms):
 
 ```
 tests/agents/syncer/test_agent.py::test_syncer_agent
@@ -311,9 +413,13 @@ tests/agents/syncer/test_agent.py::test_syncer_agent
 PASSED
 ```
 
+---
+
 ### How the Synthetic Fixture Works
 
-The `sync_request` fixture in `test_agent.py` uses **ffmpeg's built-in signal generators** (`-f lavfi`) to create real media files entirely in memory, without any stored binary assets in the repository:
+The `sync_request` fixture in `test_agent.py` uses **ffmpeg's built-in signal generators**
+(`-f lavfi`) to create real media files entirely in memory, without any stored binary assets
+in the repository:
 
 ```python
 # 3-second black video @ 30fps + silent stereo audio
