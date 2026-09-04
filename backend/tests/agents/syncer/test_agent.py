@@ -5,6 +5,16 @@ Exercises the full end-to-end pipeline:
     resolve_clip_durations → prepare_video → upload_video_to_gemini
     → call_gemini_multimodal → SyncMap output validation
 
+Fields verified in this test
+-----------------------------
+- status, video_fps, video_duration     — top-level structure & ffprobe stamp
+- placements[].beat_id                  — all IDs must come from the request
+- placements[].video_start/end_time     — temporal ordering invariant
+- placements[].confidence               — must be in [0.0, 1.0]
+- placements[].pacing_suggestion        — must be a non-empty string (Rule 11)
+- editor_timeline_text                  — must be a non-empty string  (Rule 12)
+- unplaced_beat_ids                     — all IDs must come from the request
+
 Fixture strategy
 ----------------
 A 3-second silent black MP4 video and three per-beat silent WAV audio
@@ -283,6 +293,15 @@ async def test_syncer_agent(sync_request: SyncRequest) -> None:
             f"confidence ({placement.confidence}) is outside [0.0, 1.0]"
         )
 
+        # pacing_suggestion must be a non-empty string (Rule 11)
+        # Gemini must always choose one of the three categories.
+        assert isinstance(placement.pacing_suggestion, str) and placement.pacing_suggestion, (
+            f"beat_id={placement.beat_id!r}: "
+            "pacing_suggestion must be a non-empty string — "
+            f"got {placement.pacing_suggestion!r}. "
+            "Check that Rule 11 is present in SYSTEM_PROMPT."
+        )
+
     # ------------------------------------------------------------------
     # Unplaced beats must also reference valid beat IDs
     # ------------------------------------------------------------------
@@ -294,8 +313,20 @@ async def test_syncer_agent(sync_request: SyncRequest) -> None:
         )
 
     # ------------------------------------------------------------------
+    # editor_timeline_text must be a non-empty string (Rule 12)
+    # ------------------------------------------------------------------
+
+    assert isinstance(result.editor_timeline_text, str) and result.editor_timeline_text, (
+        "editor_timeline_text must be a non-empty string. "
+        "Check that Rule 12 is present in SYSTEM_PROMPT and that "
+        "Gemini produced at least one placement or the fallback message."
+    )
+
+    # ------------------------------------------------------------------
     # Human-readable output for inspection (mirrors script_suggestor style)
     # ------------------------------------------------------------------
 
     print("\nGenerated SyncMap:")
     print(result.model_dump_json(indent=2))
+    print("\nEditor Timeline Text:")
+    print(result.editor_timeline_text)

@@ -69,6 +69,37 @@ Rules you MUST follow:
 
 10. The output must be valid JSON matching the SyncMap schema exactly.
     Do not add fields that are not in the schema.
+
+11. PACING ANALYSIS — populate pacing_suggestion for every placement:
+    a. Compute visual_window = video_end_time - video_start_time.
+    b. Compare visual_window to the audio clip's duration (provided in the
+       AUDIO CLIPS section).
+    c. If |visual_window - audio_duration| <= 0.25s  → pacing_suggestion = "Fits well"
+    d. If audio_duration > visual_window + 0.25s     → pacing_suggestion = "Audio is "
+       "too long; consider cutting the dialogue or freezing the video frame"
+    e. If audio_duration < visual_window - 0.25s     → pacing_suggestion = "Audio is "
+       "too short; consider slowing the video or adding a pause before the next beat"
+    Always output one of these three categories.  Do not leave pacing_suggestion null.
+
+12. EDITOR TIMELINE — populate editor_timeline_text with a human-readable
+    changelog summary of all placed beats using EXACTLY this format:
+
+      [MM:SS.mm - MM:SS.mm] -> Attach <audio_filename> (<pacing_suggestion>)
+
+    Rules for the format:
+    - MM = zero-padded minutes, SS = zero-padded seconds, mm = centiseconds
+      (i.e. floor(fractional seconds * 100) with 2 digits)
+    - <audio_filename> = the basename of audio_clip_path (not the full path)
+    - Include the pacing_suggestion in parentheses after the filename
+    - One line per placement, in beat order
+    - If a beat is unplaced, skip it
+    - If all beats are unplaced, set editor_timeline_text to
+      "No placements — all beats require manual sync."
+
+    Example output:
+      [00:00.42 - 00:01.42] -> Attach audio_beat_001.wav (Fits well)
+      [00:01.50 - 00:02.80] -> Attach audio_beat_002.wav (Audio is too long; consider cutting the dialogue or freezing the video frame)
+      [00:02.90 - 00:03.90] -> Attach audio_beat_003.wav (Fits well)
 """
 
 
@@ -95,6 +126,10 @@ Instructions:
   - For each audio clip, identify the video timestamp where the creator's
     mouth begins moving for that beat.
   - Follow all rules in your system instructions.
+  - For every placement, compute pacing_suggestion by comparing the audio
+    duration to the visual window (Rule 11).
+  - Populate editor_timeline_text as a human-readable changelog of all
+    placed beats using the exact format specified in Rule 12.
   - Return only the SyncMap JSON object — nothing else.
 """
 

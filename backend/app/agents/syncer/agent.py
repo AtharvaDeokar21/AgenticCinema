@@ -9,9 +9,18 @@ the editing stage.
 
 This agent does NOT extend BaseAgent (per architecture spec for Layer 3)
 and calls the Gemini API directly without ADK orchestration.
+
+DEMO_MODE
+----------
+Set the environment variable DEMO_MODE=true to bypass all external API
+calls and return a deterministic mock SyncMap.  Useful for offline demos
+or CI environments where no GEMINI_API_KEY is available.
 """
 
-from app.agents.syncer.schemas import SyncMap, SyncRequest
+import os
+from pathlib import Path
+
+from app.agents.syncer.schemas import AudioPlacement, SyncMap, SyncRequest
 from app.agents.syncer.tools import (
     call_gemini_multimodal,
     prepare_video,
@@ -48,6 +57,9 @@ class SyncerAgent:
     async def run(self, request: SyncRequest) -> SyncMap:
         """Execute the full sync pipeline for a given SyncRequest.
 
+        Set the environment variable DEMO_MODE=true to skip the live
+        Gemini API call and return a deterministic mock SyncMap instead.
+
         Args:
             request: SyncRequest containing the video path, script beats,
                      and matched audio clips.
@@ -62,6 +74,14 @@ class SyncerAgent:
                           or if the model response cannot be parsed.
             subprocess.CalledProcessError: If ffprobe or ffmpeg fail.
         """
+
+        # ------------------------------------------------------------------
+        # DEMO_MODE circuit breaker
+        # ------------------------------------------------------------------
+
+        if os.getenv("DEMO_MODE", "").lower() == "true":
+            print("[SyncerAgent] DEMO_MODE active — returning mock SyncMap")
+            return self._mock_sync_map(request)
 
         print("\n" + "=" * 80)
         print("SYNCER AGENT — STARTING PIPELINE")
@@ -171,3 +191,67 @@ class SyncerAgent:
         print(sync_map.model_dump_json(indent=2))
 
         return sync_map
+
+    # ------------------------------------------------------------------
+    # DEMO_MODE helpers
+    # ------------------------------------------------------------------
+
+    def _mock_sync_map(self, request: SyncRequest) -> SyncMap:
+        """Return a deterministic SyncMap for offline / demo use.
+
+        Skips all ffprobe, ffmpeg, and Gemini API calls.  Every placement
+        uses the script beat's expected start/end times and is labelled
+        with a 'Fits well' pacing suggestion so both new fields pass
+        Pydantic validation.
+
+        Args:
+            request: The original SyncRequest (used for beat/clip metadata).
+
+        Returns:
+            A fully populated SyncMap with mock data.
+        """
+
+        placements = []
+        timeline_lines = []
+
+        for beat, clip in zip(request.script_beats, request.audio_clips):
+            start = beat.start_time
+            end = beat.end_time
+
+            placement = AudioPlacement(
+                beat_id=beat.beat_id,
+                audio_clip_path=clip.file_path,
+                video_start_time=start,
+                video_end_time=end,
+                confidence=0.95,
+                mouth_motion_detected=False,
+                notes="DEMO_MODE: fallback to script timestamps",
+                pacing_suggestion="Fits well",
+            )
+            placements.append(placement)
+
+            # Build [MM:SS.mm - MM:SS.mm] -> Attach <file> (<pacing>) line
+            def _fmt(t: float) -> str:
+                mins = int(t) // 60
+                secs = int(t) % 60
+                cs = int(round((t - int(t)) * 100))
+                return f"{mins:02d}:{secs:02d}.{cs:02d}"
+
+            filename = Path(clip.file_path).name
+            timeline_lines.append(
+                f"[{_fmt(start)} - {_fmt(end)}] -> Attach {filename} (Fits well)"
+            )
+
+        video_duration = (
+            request.script_beats[-1].end_time if request.script_beats else 0.0
+        )
+
+        return SyncMap(
+            status="complete",
+            video_path=request.video_path,
+            video_duration=video_duration,
+            video_fps=float(request.target_fps),
+            was_vfr_converted=False,
+            placements=placements,
+            editor_timeline_text="\n".join(timeline_lines),
+        )
