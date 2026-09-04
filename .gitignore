@@ -1,0 +1,63 @@
+# Environment
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+myenv/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+
+# Media outputs
+*.mp4
+*.mov
+*.avi
+*.wav
+*.mp3
+*.m4a
+*.aac
+
+# Generated artifacts
+backend/data/
+backend/outputs/
+
+# Node
+node_modules/
+frontend/.next/
+frontend/dist/
+frontend/build/
+
+# Coverage
+.coverage
+htmlcov/
+
+# Secrets
+*.pem
+*.key
+service-account*.json
