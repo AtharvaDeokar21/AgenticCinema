@@ -96,21 +96,24 @@ SyncRequest
   ├── was_vfr_converted   (bool)
   ├── placements          (List[AudioPlacement])
   │     └── beat_id, audio_clip_path, video_start_time, video_end_time,
-  │         confidence, mouth_motion_detected, notes
-  └── unplaced_beat_ids   (beats Gemini could not visually ground)
+  │         confidence, mouth_motion_detected, notes,
+  │         pacing_suggestion   ← NEW: editor fit advice per clip
+  ├── unplaced_beat_ids   (beats Gemini could not visually ground)
+  └── editor_timeline_text ← NEW: human-readable placement changelog
+        e.g. "[00:00.42 - 00:01.42] -> Attach audio_beat_001.wav (Fits well)"
 ```
 
 ### File Role Summary
 
 | File | Role |
 |---|---|
-| [`schemas.py`](schemas.py) | **Contracts** — Pydantic V2 models for `SyncRequest` (input) and `SyncMap` / `AudioPlacement` (output). The single source of truth for all field names, types, and descriptions used by both the agent and Gemini's structured output schema. |
-| [`prompts.py`](prompts.py) | **Gemini Instruction Set** — 10-rule `SYSTEM_PROMPT` that teaches Gemini what to look for (mouth-open frame), how to handle fallbacks, and what to populate in the JSON. Plus runtime `USER_PROMPT_TEMPLATE` and two formatter helpers. |
+| [`schemas.py`](schemas.py) | **Contracts** — Pydantic V2 models for `SyncRequest` (input) and `SyncMap` / `AudioPlacement` (output). Includes `pacing_suggestion` (per-clip fit advice) and `editor_timeline_text` (human-readable changelog). The single source of truth for all field names, types, and descriptions used by both the agent and Gemini's structured output schema. |
+| [`prompts.py`](prompts.py) | **Gemini Instruction Set** — 12-rule `SYSTEM_PROMPT`: Rules 1–10 govern mouth-motion grounding and fallbacks; Rule 11 defines the pacing analysis tolerance (±0.25 s); Rule 12 specifies the `[MM:SS.mm]` editor timeline format. Plus `USER_PROMPT_TEMPLATE` and two formatter helpers. |
 | [`tools.py`](tools.py) | **Pipeline Primitives** — four focused functions (`resolve_clip_durations`, `prepare_video`, `upload_video_to_gemini`, `call_gemini_multimodal`), each independently testable and handling one discrete concern. |
-| [`agent.py`](agent.py) | **Orchestrator** — `SyncerAgent.run()` sequences the four tools, wraps the Gemini call in `try/finally` for guaranteed cleanup, and stamps ground-truth ffprobe metadata onto the output. |
+| [`agent.py`](agent.py) | **Orchestrator** — `SyncerAgent.run()` sequences the four tools, wraps the Gemini call in `try/finally` for guaranteed cleanup, stamps ground-truth ffprobe metadata, and includes a `DEMO_MODE` circuit-breaker with a fully Pydantic-valid mock. |
 | [`shared/tools/media/ffprobe.py`](../../shared/tools/media/ffprobe.py) | **Media Probing** — `probe_media()` (raw JSON), `get_video_stream_info()` (structured `VideoStreamInfo` dataclass), `detect_vfr()` (boolean VFR guard). |
 | [`shared/tools/media/ffmpeg.py`](../../shared/tools/media/ffmpeg.py) | **Media Conversion** — `convert_to_cfr()` re-encodes VFR video to libx264 CFR using the `fps` filter; `extract_audio()` and `run_ffmpeg()` for general use. |
-| [`tests/agents/syncer/test_agent.py`](../../../../tests/agents/syncer/test_agent.py) | **Integration Tests** — `sync_request` fixture synthesises real media files with `ffmpeg -f lavfi` into `tmp_path`; single `@pytest.mark.asyncio` test asserts structural guarantees on the live Gemini response. |
+| [`tests/agents/syncer/test_agent.py`](../../../../tests/agents/syncer/test_agent.py) | **Integration Tests** — `sync_request` fixture synthesises real media files with `ffmpeg -f lavfi` into `tmp_path`; single `@pytest.mark.asyncio` test asserts structural guarantees including `pacing_suggestion` (non-empty string) and `editor_timeline_text` (non-empty string). |
 
 ---
 
@@ -249,6 +252,46 @@ In all these cases the agent does **not crash** — it produces a placement with
 The `unplaced_beat_ids` field exists for situations where Gemini cannot even produce a fallback estimate (e.g. the creator's face never appears on screen during that beat's window). These beats require human intervention and the field exposes them explicitly rather than silently dropping them.
 
 The **confidence threshold of 0.5** is a deliberate design choice: above 0.5, the automated placement is trusted; below 0.5, the placement is still provided (better than nothing) but flagged in `notes` so a human reviewer knows to check it.
+
+---
+
+### 3.5 Pacing Analysis & Editor Timeline Text
+
+Two fields were added to make the `SyncMap` immediately usable by human editors without requiring them to parse JSON or write custom tooling.
+
+#### `pacing_suggestion` — per-clip fit analysis (Rule 11)
+
+For every `AudioPlacement`, Gemini compares the audio clip's known duration against the visual window it identified:
+
+```
+visual_window = video_end_time - video_start_time
+```
+
+| Condition | `pacing_suggestion` output |
+|---|---|
+| `\|visual_window − audio_duration\| ≤ 0.25 s` | `"Fits well"` |
+| `audio_duration > visual_window + 0.25 s` | `"Audio is too long; consider cutting the dialogue or freezing the video frame"` |
+| `audio_duration < visual_window − 0.25 s` | `"Audio is too short; consider slowing the video or adding a pause before the next beat"` |
+
+The **±0.25 s tolerance** absorbs natural variation in mouth-open detection without false-positive pacing warnings — a 250 ms slip is inaudible to most listeners. The field is **never null**; Gemini must always output one of the three categories.
+
+#### `editor_timeline_text` — human-readable placement changelog (Rule 12)
+
+Gemini assembles a plain-text summary of all placements in a changelog format that any editor can read at a glance:
+
+```
+[00:00.42 - 00:01.42] -> Attach audio_beat_001.wav (Fits well)
+[00:01.50 - 00:02.80] -> Attach audio_beat_002.wav (Audio is too long; consider cutting the dialogue or freezing the video frame)
+[00:02.90 - 00:03.90] -> Attach audio_beat_003.wav (Fits well)
+```
+
+Timestamp format: `MM:SS.mm` where `mm` is centiseconds (hundredths of a second). Basenames only — no absolute paths — so the text is portable across machines. If all beats are unplaced, the field is set to:
+
+```
+No placements — all beats require manual sync.
+```
+
+This field is also printed separately to stdout at the end of the pipeline, making it visible in pytest `-s` output without having to parse the JSON dump.
 
 ---
 
