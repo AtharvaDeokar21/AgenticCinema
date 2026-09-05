@@ -24,14 +24,15 @@ from app.shared.tools.audio.tts import (
 if TYPE_CHECKING:
     from app.shared.tools.gemini.client import GeminiClient
 from app.shared.tools.media.ffmpeg import extract_audio
+import os
 
 
 class AudioAgent(BaseAgent):
     """Coordinate deterministic audio work and Gemini audio reasoning."""
 
     name = "audio"
-    ANALYSIS_MODEL = "gemini-3.7-flash"
-    TTS_MODEL = "gemini-3.1-flash-tts-preview"
+    ANALYSIS_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.7-flash")
+    TTS_MODEL = os.getenv("TTS_MODEL", "gemini-3.1-flash-tts-preview")
     DEFAULT_VOICE = "Kore"
     MAX_PACING_RETRIES = 1
 

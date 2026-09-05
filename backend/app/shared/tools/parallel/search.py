@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from app.shared.models.research import (
     ResearchResult,
@@ -21,12 +21,18 @@ class ParallelSearch:
         search_queries: List[str],
         objective: Optional[str] = None,
         mode: str = "basic",
+        fetch_policy: Optional[dict[str, Any]] = None,
     ) -> ResearchResult:
-        response = await self.client.client.search(
-            search_queries=search_queries,
-            objective=objective,
-            mode=mode,
-        )
+        kwargs: dict[str, Any] = {
+            "search_queries": search_queries,
+            "objective": objective,
+            "mode": mode,
+        }
+
+        if fetch_policy is not None:
+            kwargs["fetch_policy"] = fetch_policy
+
+        response = await self.client.client.search(**kwargs)
 
         sources = []
 
