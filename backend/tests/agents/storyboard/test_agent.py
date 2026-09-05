@@ -27,6 +27,7 @@ def test_storyboard_agent():
                     "walking with a camera."
                 ),
                 audio_intent="Soft morning city ambience.",
+                expression="Curious and observant",
             ),
             ScriptBeat(
                 beat_id="beat_02",
@@ -39,6 +40,7 @@ def test_storyboard_agent():
                     "people moving through the city."
                 ),
                 audio_intent="Increasing city ambience.",
+                expression="Energetic and fascinated",
             ),
             ScriptBeat(
                 beat_id="beat_03",
@@ -51,6 +53,7 @@ def test_storyboard_agent():
                     "and Mumbai skyline."
                 ),
                 audio_intent="Emotional cinematic music.",
+                expression="Reflective and awe-inspired",
             ),
         ],
         status="draft",
@@ -106,6 +109,7 @@ def test_storyboard_agent_with_production_constraints():
                     "walking with a camera."
                 ),
                 audio_intent="Soft morning city ambience.",
+                expression="Curious and observant",
             ),
             ScriptBeat(
                 beat_id="beat_02",
@@ -118,6 +122,7 @@ def test_storyboard_agent_with_production_constraints():
                     "people moving through the city."
                 ),
                 audio_intent="Increasing city ambience.",
+                expression="Energetic and fascinated",
             ),
             ScriptBeat(
                 beat_id="beat_03",
@@ -130,6 +135,7 @@ def test_storyboard_agent_with_production_constraints():
                     "and Mumbai skyline."
                 ),
                 audio_intent="Emotional cinematic music.",
+                expression="Reflective and awe-inspired",
             ),
         ],
         status="draft",

@@ -13,7 +13,16 @@ from app.agents.storyboard.schemas import (
     VisualReferenceAnalysis,
     VisualGrammar,
 )
+from app.agents.storyboard.research import (
+    StoryboardReferenceResearcher,
+)
+from app.agents.storyboard.reference_analyzer import (
+    StoryboardReferenceAnalyzer,
+)
 
+from app.agents.storyboard.production import (
+    StoryboardProductionPlanner,
+)
 
 class StoryboardAgent:
     """
@@ -26,6 +35,32 @@ class StoryboardAgent:
 
     def __init__(self):
         self.gemini = GeminiClient()
+        self.reference_researcher = StoryboardReferenceResearcher()
+        self.reference_analyzer = StoryboardReferenceAnalyzer()
+        self.production_planner = StoryboardProductionPlanner()
+
+    async def research_references(
+        self,
+        script: ScriptVersion,
+        max_references: int = 10,
+    ):
+        topic = self._build_reference_topic(script)
+
+        return await self.reference_researcher.research(
+            script_text=self._serialize_script(script),
+            topic=topic,
+            max_references=max_references,
+        )
+
+    def plan_production(
+        self,
+        storyboard: ShotPlan,
+        production_constraints: ProductionConstraints,
+    ):
+        return self.production_planner.plan(
+            storyboard=storyboard,
+            constraints=production_constraints,
+        )
 
     def generate(
         self,
@@ -87,6 +122,7 @@ Text: {beat.text}
 Purpose: {beat.purpose or ''}
 Visual Intent: {beat.visual_intent or ''}
 Audio Intent: {beat.audio_intent or ''}
+Expression: {beat.expression or ''}
 """.strip()
             )
 
@@ -408,3 +444,19 @@ EVIDENCE:
             )
 
         return "\n\n".join(sections)
+
+    @staticmethod
+    def _build_reference_topic(script: ScriptVersion) -> str:
+        if script.title:
+            return script.title
+
+        visual_intents = [
+            beat.visual_intent
+            for beat in script.beats
+            if beat.visual_intent
+        ]
+
+        if visual_intents:
+            return visual_intents[0]
+
+        return script.full_text[:300]

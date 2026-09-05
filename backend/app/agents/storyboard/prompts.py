@@ -28,6 +28,7 @@ Core principles:
     image-generation systems.
 11. Maintain visual consistency across the entire storyboard.
 12. Define an overall visual style and color palette.
+13. Use the beat's expression to inform visual mood, composition,lighting, and camera language where appropriate.
 
 PRODUCTION REALISM:
 
@@ -165,6 +166,7 @@ For each shot, consider:
 - colour palette
 - on-screen text where appropriate
 - mood
+- emotional expression of the beat
 
 PRODUCTION FEASIBILITY:
 
