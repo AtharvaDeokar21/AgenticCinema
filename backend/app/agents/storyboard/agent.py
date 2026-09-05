@@ -4,23 +4,24 @@ from app.agents.storyboard.prompts import (
     SYSTEM_PROMPT,
     build_storyboard_prompt,
 )
+from app.shared.models.storyboard import Shot, ShotPlan
+from app.shared.models.script import ScriptVersion
+from app.shared.tools.gemini.client import GeminiClient
 from app.agents.storyboard.schemas import (
-    CreatorStyleContext,
     ProductionConstraints,
+    CreatorStyleContext,
+    VisualReferenceAnalysis,
     VisualGrammar,
 )
-from app.shared.models.script import ScriptVersion
-from app.shared.models.storyboard import ShotPlan
-from app.shared.tools.gemini.client import GeminiClient
 
 
 class StoryboardAgent:
     """
     Converts a ScriptVersion into a production-ready ShotPlan.
 
-    Optional production, creator-style, and visual-grammar context
-    allows the storyboard to adapt to the creator's actual setup
-    and established visual identity.
+    Optional production and creator context can be supplied to make
+    the generated storyboard executable within the creator's actual
+    setup and consistent with their visual identity.
     """
 
     def __init__(self):
@@ -29,21 +30,25 @@ class StoryboardAgent:
     def generate(
         self,
         script: ScriptVersion,
-        production_constraints: Optional[ProductionConstraints] = None,
-        creator_style: Optional[CreatorStyleContext] = None,
-        visual_grammar: Optional[VisualGrammar] = None,
+        production_constraints: ProductionConstraints | None = None,
+        creator_style: CreatorStyleContext | None = None,
+        visual_references: list[VisualReferenceAnalysis] | None = None,
+        visual_grammar: VisualGrammar | None = None,
     ) -> ShotPlan:
 
         prompt = build_storyboard_prompt(
-            script_text=self._serialize_script(script),
-            beat_count=len(script.beats),
-            production_constraints=self._serialize_production_constraints(
+            self._serialize_script(script),
+            len(script.beats),
+            self._serialize_production_constraints(
                 production_constraints
             ),
-            creator_style=self._serialize_creator_style(
+            self._serialize_creator_style(
                 creator_style
             ),
-            visual_grammar=self._serialize_visual_grammar(
+            self._serialize_visual_references(
+                visual_references
+            ),
+            self._serialize_visual_grammar(
                 visual_grammar
             ),
         )
@@ -54,9 +59,9 @@ class StoryboardAgent:
         )
 
         if not response.shots:
-            response = self._build_fallback_storyboard(
+            response = self._fallback_storyboard(
                 script,
-                response,
+                production_constraints,
             )
 
         self._validate_storyboard(response, script)
@@ -89,57 +94,95 @@ Audio Intent: {beat.audio_intent or ''}
 
     @staticmethod
     def _serialize_production_constraints(
-        constraints: Optional[ProductionConstraints],
+        constraints: ProductionConstraints | None,
     ) -> str:
+
         if constraints is None:
-            return "No production constraints were provided."
+            return ""
 
-        return f"""
-CAMERAS:
-{", ".join(constraints.cameras) or "None specified"}
+        lines = []
 
-LENSES:
-{", ".join(constraints.lenses) or "None specified"}
+        if constraints.cameras:
+            lines.append(
+                f"Cameras: {', '.join(constraints.cameras)}"
+            )
 
-LIGHTS:
-{", ".join(constraints.lights) or "None specified"}
+        if constraints.lenses:
+            lines.append(
+                f"Lenses: {', '.join(constraints.lenses)}"
+            )
 
-SUPPORT:
-{", ".join(constraints.support) or "None specified"}
+        if constraints.lights:
+            lines.append(
+                f"Lights: {', '.join(constraints.lights)}"
+            )
 
-LOCATION:
-{constraints.location or "Not specified"}
+        if constraints.support:
+            lines.append(
+                f"Support: {', '.join(constraints.support)}"
+            )
 
-OPERATOR:
-{constraints.operator or "Not specified"}
+        if constraints.location:
+            lines.append(
+                f"Location: {constraints.location}"
+            )
 
-PLATFORM:
-{constraints.platform or "Not specified"}
+        if constraints.operator:
+            lines.append(
+                f"Camera operator: {constraints.operator}"
+            )
 
-ASPECT RATIO:
-{constraints.aspect_ratio or "Not specified"}
+        if constraints.platform:
+            lines.append(
+                f"Platform: {constraints.platform}"
+            )
 
-BRAND GUIDELINES:
-{constraints.brand_guidelines or "None specified"}
-""".strip()
+        if constraints.aspect_ratio:
+            lines.append(
+                f"Aspect ratio: {constraints.aspect_ratio}"
+            )
+
+        if constraints.brand_guidelines:
+            lines.append(
+                f"Brand guidelines: {constraints.brand_guidelines}"
+            )
+
+        if constraints.constraints:
+            lines.append(
+                "Additional constraints: "
+                + "; ".join(constraints.constraints)
+            )
+
+        return "\n".join(lines)
 
     @staticmethod
     def _serialize_creator_style(
-        creator_style: Optional[CreatorStyleContext],
+        creator_style: CreatorStyleContext | None,
     ) -> str:
+
         if creator_style is None:
-            return "No creator style context was provided."
+            return ""
 
-        return f"""
-STYLE NOTES:
-{creator_style.style_notes or "None specified"}
+        lines = []
 
-RECENT THUMBNAILS:
-{", ".join(creator_style.recent_thumbnails) or "None provided"}
+        if creator_style.style_notes:
+            lines.append(
+                f"Style notes: {creator_style.style_notes}"
+            )
 
-RECENT STILLS:
-{", ".join(creator_style.recent_stills) or "None provided"}
-""".strip()
+        if creator_style.recent_thumbnails:
+            lines.append(
+                "Recent thumbnails available: "
+                f"{len(creator_style.recent_thumbnails)}"
+            )
+
+        if creator_style.recent_stills:
+            lines.append(
+                "Recent stills available: "
+                f"{len(creator_style.recent_stills)}"
+            )
+
+        return "\n".join(lines)
 
     @staticmethod
     def _serialize_visual_grammar(
@@ -150,86 +193,39 @@ RECENT STILLS:
 
         return f"""
 FRAMING PATTERNS:
-{", ".join(visual_grammar.framing_patterns) or "None"}
+{chr(10).join(visual_grammar.framing_patterns) or "None"}
 
 CAMERA PATTERNS:
-{", ".join(visual_grammar.camera_patterns) or "None"}
+{chr(10).join(visual_grammar.camera_patterns) or "None"}
 
 MOVEMENT PATTERNS:
-{", ".join(visual_grammar.movement_patterns) or "None"}
+{chr(10).join(visual_grammar.movement_patterns) or "None"}
 
 LIGHTING PATTERNS:
-{", ".join(visual_grammar.lighting_patterns) or "None"}
+{chr(10).join(visual_grammar.lighting_patterns) or "None"}
 
 COLOUR PATTERNS:
-{", ".join(visual_grammar.colour_patterns) or "None"}
+{chr(10).join(visual_grammar.colour_patterns) or "None"}
 
 PACING PATTERNS:
-{", ".join(visual_grammar.pacing_patterns) or "None"}
+{chr(10).join(visual_grammar.pacing_patterns) or "None"}
 
 TEXT PATTERNS:
-{", ".join(visual_grammar.text_patterns) or "None"}
+{chr(10).join(visual_grammar.text_patterns) or "None"}
 
 SUMMARY:
 {visual_grammar.summary or "None"}
 
 EVIDENCE:
-{", ".join(visual_grammar.evidence) or "None"}
+{chr(10).join(visual_grammar.evidence) or "None"}
 """.strip()
-
-    @staticmethod
-    def _build_fallback_storyboard(
-        script: ScriptVersion,
-        partial: ShotPlan,
-    ) -> ShotPlan:
-        shots = []
-
-        for index, beat in enumerate(script.beats, start=1):
-            shots.append(
-                {
-                    "shot_id": f"shot_{index:02d}",
-                    "beat_id": beat.beat_id,
-                    "start_time": beat.start_time,
-                    "end_time": beat.end_time,
-                    "shot_type": "Wide Shot",
-                    "camera_angle": "Eye Level",
-                    "camera_movement": "Static",
-                    "framing": "Wide Framing",
-                    "subject": beat.visual_intent or beat.text,
-                    "background": (
-                        "Environment described by the script beat."
-                    ),
-                    "lighting": (
-                        "Natural cinematic lighting appropriate "
-                        "to the scene."
-                    ),
-                    "visual_description": (
-                        beat.visual_intent or beat.text
-                    ),
-                    "colour_palette": [],
-                    "on_screen_text": None,
-                    "mood": beat.purpose or "Cinematic",
-                    "reference_images": [],
-                    "generated_image": None,
-                }
-            )
-
-        return ShotPlan(
-            version=script.version,
-            shots=shots,
-            visual_style=partial.visual_style,
-            color_palette=partial.color_palette,
-            evidence=partial.evidence + [
-                "Fallback storyboard generated because Gemini "
-                "returned no shots."
-            ],
-        )
 
     @staticmethod
     def _validate_storyboard(
         storyboard: ShotPlan,
         script: ScriptVersion,
     ) -> None:
+
         if not storyboard.shots:
             raise ValueError(
                 "Storyboard generation returned no shots."
@@ -277,3 +273,138 @@ EVIDENCE:
                 "Storyboard is missing visual coverage for beats: "
                 + ", ".join(sorted(missing_beats))
             )
+
+    @staticmethod
+    def _fallback_storyboard(
+        script: ScriptVersion,
+        production_constraints: ProductionConstraints | None = None,
+    ) -> ShotPlan:
+
+        shots = []
+
+        for index, beat in enumerate(script.beats, start=1):
+
+            visual_intent = (
+                beat.visual_intent
+                or beat.text
+                or "Scene described by script."
+            )
+
+            duration = beat.end_time - beat.start_time
+
+            shot_type = "Medium Shot"
+            camera_angle = "Eye Level"
+            camera_movement = "Static"
+            framing = "Centered"
+
+            if duration >= 8:
+                camera_movement = "Slow Tracking"
+
+            intent = visual_intent.lower()
+
+            if any(
+                word in intent
+                for word in [
+                    "street",
+                    "landscape",
+                    "city",
+                    "coast",
+                    "skyline",
+                ]
+            ):
+                shot_type = "Wide Shot"
+                framing = "Wide Framing"
+
+            if any(
+                word in intent
+                for word in [
+                    "close",
+                    "face",
+                    "detail",
+                    "hands",
+                ]
+            ):
+                shot_type = "Close-up"
+                framing = "Tight Framing"
+
+            if any(
+                word in intent
+                for word in [
+                    "sunset",
+                    "golden hour",
+                    "sunrise",
+                ]
+            ):
+                lighting = "Natural golden-hour lighting"
+            else:
+                lighting = "Natural lighting appropriate to the scene"
+
+            shots.append(
+                Shot(
+                    shot_id=f"shot_{index:02d}",
+                    beat_id=beat.beat_id,
+                    start_time=beat.start_time,
+                    end_time=beat.end_time,
+                    shot_type=shot_type,
+                    camera_angle=camera_angle,
+                    camera_movement=camera_movement,
+                    framing=framing,
+                    subject=beat.text,
+                    background=visual_intent,
+                    lighting=lighting,
+                    visual_description=visual_intent,
+                    colour_palette=[],
+                    on_screen_text=None,
+                    mood=beat.purpose,
+                    reference_images=[],
+                    generated_image=None,
+                )
+            )
+
+        return ShotPlan(
+            version=script.version,
+            shots=shots,
+            visual_style=(
+                "Natural cinematic documentary style guided by "
+                "the script's visual intent."
+            ),
+            color_palette=(
+                "Natural scene-appropriate colours with "
+                "consistent visual continuity."
+            ),
+            evidence=[
+                f"Fallback storyboard generated from script beat "
+                f"{beat.beat_id}."
+                for beat in script.beats
+            ],
+        )
+
+    @staticmethod
+    def _serialize_visual_references(
+        references: list[VisualReferenceAnalysis] | None,
+    ) -> str:
+
+        if not references:
+            return "No visual reference analyses were provided."
+
+        sections = []
+
+        for index, reference in enumerate(references, start=1):
+            sections.append(
+                f"""
+    REFERENCE {index}
+    URL: {reference.reference_url or "Unknown"}
+
+    Shot size: {reference.shot_size or "Unknown"}
+    Camera angle: {reference.camera_angle or "Unknown"}
+    Subject placement: {reference.subject_placement or "Unknown"}
+    Background: {reference.background or "Unknown"}
+    Lighting: {reference.lighting or "Unknown"}
+    Colour palette: {", ".join(reference.colour_palette) or "Unknown"}
+    Movement: {reference.movement or "Unknown"}
+    On-screen text: {reference.on_screen_text or "None"}
+    Mood: {reference.mood or "Unknown"}
+    """.strip()
+            )
+
+        return "\n\n".join(sections)

@@ -21,6 +21,8 @@ class ProductionConstraints(BaseModel):
 
     brand_guidelines: Optional[str] = None
 
+    constraints: List[str] = Field(default_factory=list)
+
 
 class CreatorStyleContext(BaseModel):
     """
