@@ -145,3 +145,23 @@ def convert_to_cfr(
     )
 
     return str(dst)
+
+def extract_frame_at(
+    input_path: str,
+    output_path: str,
+    timestamp: float,
+) -> None:
+    """Extract a single JPEG frame at a specific timestamp."""
+
+    run_ffmpeg(
+        input_path=input_path,
+        output_path=output_path,
+        args=[
+            "-ss",
+            str(max(0.0, timestamp)),
+            "-frames:v",
+            "1",
+            "-q:v",
+            "2",
+        ],
+    )

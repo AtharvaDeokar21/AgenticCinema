@@ -10,7 +10,11 @@ class Settings(BaseSettings):
 
     # Gemini API
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-3.7-flash"
+    gemini_model: str = "gemini-3.6-flash"
+
+    # Hugging Face
+    hf_token: str = ""
+    hf_image_model: str = "black-forest-labs/FLUX.1-schnell"
 
     # Google Cloud / Vertex AI
     google_cloud_project: str = ""
