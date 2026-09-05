@@ -19,6 +19,8 @@ class ScriptBeat(BaseModel):
 
     audio_intent: Optional[str] = None
 
+    expression: Optional[str] = None
+
 
 class ScriptVersion(BaseModel):
     version: int
