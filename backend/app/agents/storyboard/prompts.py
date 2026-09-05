@@ -132,6 +132,29 @@ production constraints take priority.
 When reference-derived techniques cannot be executed by the creator,
 produce the closest practical equivalent using the available equipment.
 
+REFERENCE-DERIVED REQUIREMENT:
+
+The reference-derived visual grammar is mandatory evidence for
+visual decisions.
+
+Unless production constraints or script intent make it inappropriate,
+the storyboard MUST incorporate the observed:
+- framing patterns
+- camera patterns
+- lighting patterns
+- colour patterns
+- movement patterns
+- pacing patterns
+- text patterns
+
+Do not ignore available colour information.
+
+Every shot MUST provide a non-empty colour_palette when the visual
+grammar contains colour patterns.
+
+For this storyboard, explicitly explain the visual grammar through
+the generated shot fields rather than merely describing it abstractly.
+
 MANDATORY OUTPUT REQUIREMENTS:
 
 There are exactly {beat_count} script beats in this script.
@@ -198,6 +221,21 @@ Provide:
 - visual_style
 - color_palette
 - evidence
+
+HARD PRODUCTION CONSTRAINT CHECK:
+
+Before assigning camera movement, verify that the movement can
+actually be performed with the supplied equipment.
+
+If the creator has:
+- tripod only → prefer static, locked-off, or post-production movement
+- no gimbal → do not recommend gimbal-dependent movement
+- solo operation → do not require another operator
+
+Never output a physically impossible camera movement merely because
+it is cinematic.
+
+Production feasibility takes priority over cinematic ambition.
 
 Set reference_images to an empty list.
 Set generated_image to null.

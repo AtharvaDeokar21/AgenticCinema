@@ -1,7 +1,9 @@
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
+
 from app.shared.models.storyboard import ShotPlan
+
 
 class ProductionConstraints(BaseModel):
     """
@@ -39,8 +41,7 @@ class VisualReferenceAnalysis(BaseModel):
     """
     Structured observation of a reference frame or clip.
 
-    These are observations of what is present in the reference,
-    not recommendations.
+    These are observations, not recommendations.
     """
 
     reference_url: Optional[str] = None
@@ -75,6 +76,7 @@ class VisualGrammar(BaseModel):
 
     evidence: List[str] = Field(default_factory=list)
 
+
 class ReferenceFrame(BaseModel):
     """
     Representative frame extracted from a reference video.
@@ -108,19 +110,28 @@ class ReferenceMediaResult(BaseModel):
 class StoryboardReference(BaseModel):
     title: str
     url: str
-    excerpts: list[str] = Field(default_factory=list)
+
+    excerpts: List[str] = Field(
+        default_factory=list
+    )
+
     publish_date: Optional[str] = None
     content: Optional[str] = None
 
     media_path: Optional[str] = None
-    frames: list[ReferenceFrame] = Field(default_factory=list)
+
+    frames: List[ReferenceFrame] = Field(
+        default_factory=list
+    )
 
 
 class StoryboardReferenceResearch(BaseModel):
     query: str
-    references: list[StoryboardReference] = Field(
+
+    references: List[StoryboardReference] = Field(
         default_factory=list
     )
+
 
 class ShotProductionPlan(BaseModel):
     shot_id: str
@@ -139,11 +150,55 @@ class ShotProductionPlan(BaseModel):
     )
 
     feasibility: str
+
     issues: List[str] = Field(
         default_factory=list
     )
 
     notes: Optional[str] = None
+
+
+class ShotAdaptation(BaseModel):
+    """
+    Records how a storyboard shot was adapted to fit
+    real production constraints.
+    """
+
+    shot_id: str
+
+    original_movement: Optional[str] = None
+    adapted_movement: Optional[str] = None
+
+    original_camera: Optional[str] = None
+    adapted_camera: Optional[str] = None
+
+    original_lens: Optional[str] = None
+    adapted_lens: Optional[str] = None
+
+    changes: List[str] = Field(
+        default_factory=list
+    )
+
+    creative_intent_preserved: bool = True
+
+    reason: Optional[str] = None
+
+
+class AdaptedStoryboard(BaseModel):
+    """
+    Final storyboard after production adaptation.
+    """
+
+    storyboard: ShotPlan
+
+    adaptations: List[ShotAdaptation] = Field(
+        default_factory=list
+    )
+
+    overall_notes: List[str] = Field(
+        default_factory=list
+    )
+
 
 class ProductionAwareStoryboard(BaseModel):
     """
@@ -157,5 +212,64 @@ class ProductionAwareStoryboard(BaseModel):
     )
 
     overall_issues: List[str] = Field(
+        default_factory=list
+    )
+
+
+class ThumbnailVariant(BaseModel):
+    """
+    One generated thumbnail variant.
+    """
+
+    variant: str
+    concept: str
+
+    headline: Optional[str] = None
+
+    prompt: str
+
+    image_path: Optional[str] = None
+
+    aspect_ratio: str = "16:9"
+
+
+class GeneratedStoryboardAsset(BaseModel):
+    """
+    Generated visual asset associated with a storyboard shot.
+    """
+
+    asset_id: str
+
+    shot_id: Optional[str] = None
+
+    asset_type: str
+
+    prompt: str
+
+    image_path: Optional[str] = None
+
+    aspect_ratio: str = "16:9"
+
+    notes: Optional[str] = None
+
+
+class StoryboardAssetGenerationResult(BaseModel):
+    """
+    Result of Phase 7 real visual generation.
+    """
+
+    thumbnails: List[ThumbnailVariant] = Field(
+        default_factory=list
+    )
+
+    storyboard_assets: List[GeneratedStoryboardAsset] = Field(
+        default_factory=list
+    )
+
+    concept_art: List[GeneratedStoryboardAsset] = Field(
+        default_factory=list
+    )
+
+    errors: List[str] = Field(
         default_factory=list
     )

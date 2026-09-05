@@ -6,6 +6,7 @@ from app.shared.tools.parallel.extract import ParallelExtract
 from app.agents.storyboard.schemas import (
     StoryboardReference,
     StoryboardReferenceResearch,
+    ReferenceMediaResult,
 )
 
 from app.agents.storyboard.media import (
@@ -115,11 +116,11 @@ class StoryboardReferenceResearcher:
         source_url: str,
         local_path: str,
         reference_id: str,
-    ):
+    ) -> ReferenceMediaResult:
         """
         Process a locally available reference video.
 
-        Downloading is intentionally outside this class for now.
+        Downloading is intentionally outside this class.
         """
 
         return self.media_processor.process(

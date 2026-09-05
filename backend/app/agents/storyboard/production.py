@@ -1,4 +1,5 @@
 from typing import Optional
+from urllib import response
 
 from app.agents.storyboard.schemas import (
     ProductionConstraints,
@@ -328,7 +329,7 @@ ON-SCREEN TEXT:
                 + ", ".join(sorted(unknown))
             )
 
-        if response.storyboard is None:
+        if response.storyboard is None or not response.storyboard.shots:
             response.storyboard = storyboard
 
         return response

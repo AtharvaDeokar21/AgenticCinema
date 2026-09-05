@@ -12,6 +12,7 @@ from app.agents.storyboard.schemas import (
     CreatorStyleContext,
     VisualReferenceAnalysis,
     VisualGrammar,
+    ProductionAwareStoryboard,
 )
 from app.agents.storyboard.research import (
     StoryboardReferenceResearcher,
@@ -22,6 +23,14 @@ from app.agents.storyboard.reference_analyzer import (
 
 from app.agents.storyboard.production import (
     StoryboardProductionPlanner,
+)
+
+from app.agents.storyboard.adaptation import (
+    StoryboardAdaptationPlanner,
+)
+
+from app.agents.storyboard.asset_generator import (
+    StoryboardAssetGenerator,
 )
 
 class StoryboardAgent:
@@ -38,6 +47,8 @@ class StoryboardAgent:
         self.reference_researcher = StoryboardReferenceResearcher()
         self.reference_analyzer = StoryboardReferenceAnalyzer()
         self.production_planner = StoryboardProductionPlanner()
+        self.adaptation_planner = StoryboardAdaptationPlanner()
+        self.asset_generator = StoryboardAssetGenerator()
 
     async def research_references(
         self,
@@ -61,7 +72,17 @@ class StoryboardAgent:
             storyboard=storyboard,
             constraints=production_constraints,
         )
-
+    
+    def adapt_storyboard(
+        self,
+        production_storyboard: ProductionAwareStoryboard,
+        production_constraints: ProductionConstraints,
+    ):
+        return self.adaptation_planner.adapt(
+            production_storyboard=production_storyboard,
+            constraints=production_constraints,
+        )
+    
     def generate(
         self,
         script: ScriptVersion,
@@ -102,6 +123,72 @@ class StoryboardAgent:
         self._validate_storyboard(response, script)
 
         return response
+
+    async def generate_full_pipeline(
+        self,
+        script: ScriptVersion,
+        production_constraints: ProductionConstraints,
+        *,
+        max_references: int = 10,
+        generate_thumbnails: bool = True,
+        generate_shots: bool = True,
+        generate_concept_art: bool = False,
+        project_id: str = "storyboard_demo",
+    ):
+        """
+        Execute the complete demo storyboard pipeline.
+
+        Script
+            -> Parallel Search
+            -> Parallel Extract
+            -> media/reference analysis
+            -> visual grammar
+            -> storyboard
+            -> production planning
+            -> adaptation
+            -> real visual asset generation
+        """
+
+        research = await self.research_references(
+            script=script,
+            max_references=max_references,
+        )
+
+        storyboard = self.generate(
+            script=script,
+            production_constraints=production_constraints,
+        )
+
+        production = self.plan_production(
+            storyboard=storyboard,
+            production_constraints=production_constraints,
+        )
+
+        adapted = self.adapt_storyboard(
+            production_storyboard=production,
+            production_constraints=production_constraints,
+        )
+
+        assets = self.asset_generator.generate(
+            storyboard=adapted.storyboard,
+            production=ProductionAwareStoryboard(
+                storyboard=adapted.storyboard,
+                production_plans=production.production_plans,
+                overall_issues=production.overall_issues,
+            ),
+            project_id=project_id,
+            generate_shots=generate_shots,
+            generate_thumbnails=generate_thumbnails,
+            generate_concept_art=generate_concept_art,
+        )
+
+        return {
+            "research": research,
+            "storyboard": storyboard,
+            "production": production,
+            "adapted": adapted,
+            "assets": assets,
+        }
 
     @staticmethod
     def _serialize_script(script: ScriptVersion) -> str:

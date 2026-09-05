@@ -30,10 +30,13 @@ class StoryboardReferenceAnalyzer:
 
     def __init__(
         self,
-        vision_analyzer: StoryboardReferenceVisionAnalyzer | None = None,
-        grammar_builder: VisualGrammarBuilder | None = None,
+        vision_analyzer: (
+            StoryboardReferenceVisionAnalyzer | None
+        ) = None,
+        grammar_builder: (
+            VisualGrammarBuilder | None
+        ) = None,
     ):
-
         self.vision_analyzer = (
             vision_analyzer
             or StoryboardReferenceVisionAnalyzer()
@@ -44,14 +47,19 @@ class StoryboardReferenceAnalyzer:
             or VisualGrammarBuilder()
         )
 
-    def analyze(
+    async def analyze(
         self,
         frames: List[ExtractedFrame],
+        reference_url: str | None = None,
     ) -> ReferenceVisualAnalysisResult:
 
         analyses = self.vision_analyzer.analyze_frames(
-            frames
+            frames=frames,
+            reference_url=reference_url,
         )
+
+        if hasattr(analyses, "__await__"):
+            analyses = await analyses
 
         grammar = self.grammar_builder.build(
             analyses

@@ -127,6 +127,61 @@ class GeminiClient:
 
         return response
 
+    def generate_image(
+        self,
+        prompt: str,
+        output_path: str,
+        *,
+        aspect_ratio: str = "16:9",
+        image_size: str = "1K",
+        model: Optional[str] = None,
+    ) -> str:
+
+        path = Path(output_path)
+
+        path.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        settings = get_settings()
+
+        image_model = (
+            model
+            or settings.gemini_image_model
+        )
+
+        response = self.client.models.generate_content(
+            model=image_model,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_modalities=["IMAGE"],
+                image_config=types.ImageConfig(
+                    aspect_ratio=aspect_ratio,
+                ),
+            ),
+        )
+
+        if not response.parts:
+            raise ValueError(
+                "Gemini image generation returned no response parts."
+            )
+
+        for part in response.parts:
+
+            if part.inline_data is None:
+                continue
+
+            image = part.as_image()
+
+            image.save(str(path))
+
+            return str(path)
+
+        raise ValueError(
+            "Gemini image generation returned no image data."
+        )
+
     def generate_tts(
         self,
         text: str,
