@@ -7,6 +7,8 @@ from the per-run ``monitor`` convenience method used by older code.
 
 from typing import Any, Dict, Optional
 
+import httpx
+
 from .client import ParallelClient
 
 
@@ -72,7 +74,7 @@ class ParallelMonitor:
     ) -> Dict[str, Any]:
         """Update a monitor's supported configuration."""
         response = await self._request(
-            "PATCH",
+            "POST",
             f"/v1alpha/monitors/{monitor_id}",
             updates,
         )
@@ -122,6 +124,7 @@ class ParallelMonitor:
 
         response = await request_method(
             **kwargs,
+            cast_to=httpx.Response,
         )
 
         if hasattr(response, "json"):
