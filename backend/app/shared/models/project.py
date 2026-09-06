@@ -16,6 +16,14 @@ from .creator_scout import CreatorRecommendation
 from .stages import ProjectStage
 
 
+class WorkflowConfig(BaseModel):
+    """Workflow configuration for a project"""
+    audio_mode: str = "AI_VOICE"  # AI_VOICE or CREATOR_VOICE
+    enable_creator_scout: bool = False
+    target_locales: List[str] = Field(default_factory=list)
+    request_approval_for_yellow: bool = True
+
+
 class ProjectState(BaseModel):
     project_id: str
 
@@ -50,3 +58,12 @@ class ProjectState(BaseModel):
     )
 
     errors: List[str] = Field(default_factory=list)
+
+    # New fields for DAG-based execution
+    completed_stages: List[str] = Field(default_factory=list)
+    blocked_stages: List[str] = Field(default_factory=list)
+    workflow_config: WorkflowConfig = Field(default_factory=WorkflowConfig)
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
+    version: int = 1

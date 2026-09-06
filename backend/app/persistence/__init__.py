@@ -1,0 +1,3 @@
+"""
+Minimal persistence init module.
+"""
