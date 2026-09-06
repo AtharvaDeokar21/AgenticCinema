@@ -130,10 +130,9 @@ class ProjectRepository:
 
     @staticmethod
     async def load(project_id: str) -> Optional[ProjectState]:
-        """Load project by ID"""
+        """Load project by ID, fully deserialising all Pydantic sub-models."""
         conn = get_db()
         cursor = conn.cursor()
-
         cursor.execute("SELECT * FROM projects WHERE project_id = ?", (project_id,))
         row = cursor.fetchone()
         conn.close()
@@ -141,25 +140,55 @@ class ProjectRepository:
         if not row:
             return None
 
-        # Reconstruct ProjectState from JSON
+        def _parse(col_name, model_cls):
+            raw = row[col_name]
+            if not raw:
+                return None
+            try:
+                data = json.loads(raw) if isinstance(raw, str) else raw
+                return model_cls.model_validate(data)
+            except Exception:
+                return None
+
+        def _parse_list(col_name, model_cls):
+            raw = row[col_name]
+            if not raw:
+                return []
+            try:
+                data = json.loads(raw) if isinstance(raw, str) else raw
+                return [model_cls.model_validate(item) for item in data]
+            except Exception:
+                return []
+
+        from ..shared.models.creator import CreatorProfile
+        from ..shared.models.deal import DealContext
+        from ..shared.models.script import ScriptVersion
+        from ..shared.models.storyboard import ShotPlan
+        from ..shared.models.media import MediaManifest
+        from ..shared.models.sync import SyncReport
+        from ..shared.models.audio import AudioMaster
+        from ..shared.models.dub import DubTrack
+        from ..shared.models.compliance import ClearanceReport
+
         return ProjectState(
             project_id=row["project_id"],
             project_name=row["project_name"],
-            creator_profile=None,  # Simplified for demo
-            deal_context=None,
-            script=None,
-            storyboard=None,
-            media_manifest=None,
-            sync_report=None,
-            audio_master=None,
-            dub_tracks=[],
-            clearance_report=None,
-            current_stage=row["current_stage"],
+            creator_profile=_parse("creator_profile", CreatorProfile),
+            deal_context=_parse("deal_context", DealContext),
+            script=_parse("script", ScriptVersion),
+            storyboard=_parse("storyboard", ShotPlan),
+            media_manifest=_parse("media_manifest", MediaManifest),
+            sync_report=_parse("sync_report", SyncReport),
+            audio_master=_parse("audio_master", AudioMaster),
+            dub_tracks=_parse_list("dub_tracks", DubTrack),
+            clearance_report=_parse("clearance_report", ClearanceReport),
+            current_stage=row["current_stage"] or "CREATED",
             completed_stages=json.loads(row["completed_stages"]) if row["completed_stages"] else [],
             blocked_stages=json.loads(row["blocked_stages"]) if row["blocked_stages"] else [],
             errors=json.loads(row["errors"]) if row["errors"] else [],
             created_at=datetime.fromisoformat(row["created_at"]),
             updated_at=datetime.fromisoformat(row["updated_at"]),
+            version=row["version"] or 1,
         )
 
     @staticmethod

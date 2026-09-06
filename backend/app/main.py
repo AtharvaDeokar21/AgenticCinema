@@ -114,24 +114,66 @@ async def create_project(req: CreateProjectRequest):
 
 @app.get("/projects/{project_id}")
 async def get_project(project_id: str):
-    """Get project state"""
+    """Get full project state including all generated content."""
     project = await ProjectRepository.load(project_id)
 
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # Get ready stages
     completed = set(project.completed_stages)
     ready = dag.get_ready_stages(completed)
+
+    script_data = None
+    if project.script:
+        script_data = {
+            "title": project.script.title,
+            "beats": [
+                {
+                    "beat_id": b.beat_id,
+                    "text": b.text,
+                    "start_time": b.start_time,
+                    "end_time": b.end_time,
+                    "audio_intent": b.audio_intent,
+                }
+                for b in (project.script.beats or [])
+            ],
+        }
+
+    storyboard_data = None
+    if project.storyboard:
+        storyboard_data = {
+            "visual_style": project.storyboard.visual_style,
+            "shots": [
+                {
+                    "shot_id": s.shot_id,
+                    "description": s.description,
+                    "duration": s.duration,
+                }
+                for s in (project.storyboard.shots or [])
+            ],
+        }
+
+    audio_data = None
+    if project.audio_master:
+        audio_data = {
+            "duration": project.audio_master.duration,
+            "sample_rate": project.audio_master.sample_rate,
+            "segments": len(project.audio_master.segments or []),
+        }
 
     return {
         "project_id": project.project_id,
         "project_name": project.project_name,
-        "status": "in_progress",
         "completed_stages": project.completed_stages,
         "ready_stages": [s.value for s in ready],
         "blocked_stages": project.blocked_stages,
-        "audio_mode": project.workflow_config.audio_mode,
+        "workflow_config": {
+            "audio_mode": project.workflow_config.audio_mode,
+            "target_locales": project.workflow_config.target_locales,
+        },
+        "script": script_data,
+        "storyboard": storyboard_data,
+        "audio": audio_data,
         "created_at": project.created_at.isoformat(),
         "updated_at": project.updated_at.isoformat(),
     }
