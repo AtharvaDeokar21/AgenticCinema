@@ -64,5 +64,15 @@ htmlcov/
 *.key
 service-account*.json
 
+
+#frontend
+node_modules
+.next
+out
+.DS_Store
+*.log
+.env*.local
+
+
 # image generation outputs
 storage/
