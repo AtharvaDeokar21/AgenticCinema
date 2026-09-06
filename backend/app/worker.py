@@ -1,12 +1,8 @@
 """
-Phase 4: Persistent Async Worker
-Polls the SQLite `jobs` table and executes queued stage jobs.
-This runs as a background asyncio task started in FastAPI's lifespan.
-
-Design:
-  - No Celery, no Redis — just SQLite + asyncio.
-  - Every state transition is written to the DB immediately.
-  - On startup, interrupted jobs (status='running') are reset to 'queued'.
+Phase 4 + 5: Persistent Async Worker
+- Polls the SQLite `jobs` table every POLL_INTERVAL seconds.
+- Phase 5 addition: checks for pending YELLOW compliance blocks before running a job,
+  and runs ComplianceDecorator after each stage, saving the result to the DB.
 """
 import asyncio
 import json
@@ -14,27 +10,83 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
-from app.persistence.repository import JobRepository, ProjectRepository
+from app.persistence.repository import (
+    JobRepository,
+    ProjectRepository,
+    ComplianceCheckpointRepository,
+)
 from app.orchestration.dag import StageType
+from app.orchestration.compliance_decorator import ComplianceDecorator
+from app.agents.compliance.agent import ComplianceAgent
 
 logger = logging.getLogger(__name__)
 
-# How often the worker checks for new queued jobs (seconds)
-POLL_INTERVAL = 3
+POLL_INTERVAL = 3  # seconds between DB polls
 
-# Dummy video path used for AI Voice mode (no real video needed)
 _DUMMY_VIDEO_PATH = str(Path(__file__).resolve().parent.parent / "tmp" / "dummy.mp4")
+
+# Single shared compliance decorator (stateless between jobs — state is in the DB)
+_compliance_agent = ComplianceAgent()
+_compliance_decorator = ComplianceDecorator(_compliance_agent)
+
+
+async def _run_compliance_check(project_id: str, stage: str, project_data: dict) -> None:
+    """
+    Run compliance after a stage completes and persist the checkpoint to SQLite.
+    A YELLOW result will block downstream stages until the human approves it.
+    """
+    try:
+        checkpoint = await _compliance_decorator.check(stage, project_data)
+        if checkpoint is None:
+            return  # stage doesn't require compliance (e.g. CREATED)
+
+        await ComplianceCheckpointRepository.save({
+            "checkpoint_id": checkpoint.checkpoint_id,
+            "project_id": project_id,
+            "stage": checkpoint.stage,
+            "status": checkpoint.status.value.lower(),   # "green" | "yellow" | "red"
+            "report": checkpoint.report.model_dump() if checkpoint.report else None,
+            "decisions": [],
+            "created_at": checkpoint.created_at,
+            "approved_at": None,
+        })
+
+        logger.info(
+            f"[Worker] Compliance [{stage}] → {checkpoint.status.value}"
+        )
+        if checkpoint.status.value.upper() == "YELLOW":
+            logger.warning(
+                f"[Worker] YELLOW compliance on {stage} for project {project_id}. "
+                "Downstream stages blocked until approved."
+            )
+        elif checkpoint.status.value.upper() == "RED":
+            logger.error(
+                f"[Worker] RED compliance on {stage} for project {project_id}. Pipeline blocked."
+            )
+    except Exception as exc:
+        logger.warning(f"[Worker] Compliance check error (non-blocking): {exc}")
 
 
 async def _execute_job(job: dict) -> None:
     """
     Run a single job end-to-end and persist its status at each step.
+    Phase 5: skips the job if a pending YELLOW block exists for this project.
     """
     job_id = job["job_id"]
     project_id = job["project_id"]
     stage_str = job["stage"]
 
-    # Mark as running immediately so the worker doesn't pick it up again
+    # ── Phase 5: Pre-run YELLOW block check ──────────────────────────────
+    pending = await ComplianceCheckpointRepository.get_pending(project_id)
+    if pending:
+        logger.info(
+            f"[Worker] Job {job_id} ({stage_str}) skipped — "
+            f"waiting for approval on checkpoint(s): "
+            f"{[p['checkpoint_id'] for p in pending]}"
+        )
+        return  # Leave as 'queued'; retry on next poll after human approves
+
+    # ── Mark running ─────────────────────────────────────────────────────
     job["status"] = "running"
     job["started_at"] = datetime.utcnow().isoformat()
     await JobRepository.save(job)
@@ -57,13 +109,15 @@ async def _execute_job(job: dict) -> None:
         await JobRepository.save(job)
         return
 
+    # Track what data was produced for the compliance check
+    compliance_data: dict = {}
+
     try:
         if stage == StageType.SCRIPT:
             from app.agents.script_suggestor.agent import ScriptSuggestorAgent
             from app.agents.script_suggestor.schemas import ScriptRequest
 
             brief = "Generate an engaging creative script"
-            # input_override may be stored as JSON in the result field at queue time
             if job.get("result"):
                 try:
                     override = json.loads(job["result"]) if isinstance(job["result"], str) else job["result"]
@@ -75,6 +129,7 @@ async def _execute_job(job: dict) -> None:
             request = ScriptRequest(creator_profile=project.creator_profile, brief=brief)
             result = await agent.run(request)
             project.script = result
+            compliance_data = {"script": result}
 
         elif stage == StageType.STORYBOARD:
             from app.agents.storyboard.agent import StoryboardAgent
@@ -86,6 +141,7 @@ async def _execute_job(job: dict) -> None:
             loop = asyncio.get_event_loop()
             result = await loop.run_in_executor(None, agent.generate, project.script)
             project.storyboard = result
+            compliance_data = {"storyboard": result}
 
         elif stage == StageType.AUDIO_AI:
             from app.agents.audio.agent import AudioAgent
@@ -102,21 +158,26 @@ async def _execute_job(job: dict) -> None:
             )
             result = await agent.run(request)
             project.audio_master = result.audio_master
+            compliance_data = {"audio": result.audio_master}
 
         else:
-            logger.warning(f"[Worker] Stage {stage_str} not yet handled by worker, marking complete.")
+            logger.warning(f"[Worker] Stage {stage_str} not yet handled by worker.")
 
         # Persist the updated project state
         if stage.value not in project.completed_stages:
             project.completed_stages.append(stage.value)
         await ProjectRepository.save(project)
 
+        # ── Phase 5: Post-stage compliance check ─────────────────────────
+        if compliance_data:
+            await _run_compliance_check(project_id, stage_str, compliance_data)
+
         job["status"] = "completed"
         job["progress"] = 1.0
         job["result"] = json.dumps({"stage": stage_str, "status": "completed"})
         job["completed_at"] = datetime.utcnow().isoformat()
         await JobRepository.save(job)
-        logger.info(f"[Worker] Job {job_id} | Stage {stage_str} | COMPLETED")
+        logger.info(f"[Worker] Job {job_id} | Stage {stage_str} | COMPLETED ✓")
 
     except Exception as exc:
         job["status"] = "failed"
@@ -139,7 +200,7 @@ async def run_worker_loop() -> None:
         try:
             queued = await JobRepository.get_queued_jobs()
             for job in queued:
-                # Each job runs concurrently; one slow agent won't block others
+                # Each job runs concurrently
                 asyncio.create_task(_execute_job(job))
         except Exception as exc:
             logger.error(f"[Worker] Poll error: {exc}")

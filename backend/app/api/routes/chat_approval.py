@@ -1,22 +1,22 @@
 """
-API routes for Phase 2: Chat and Compliance Approval
+API routes for Phase 2 & 5: Chat and Compliance Approval
+Phase 5: approve and pending endpoints now read/write from SQLite DB.
 """
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import uuid
 
-from ..orchestration.chat_router import ChatIntentRouter
-from ..orchestration.compliance_decorator import ComplianceDecorator
-from ..persistence.repository import ProjectRepository
-from ..agents.compliance.agent import ComplianceAgent
+from app.orchestration.chat_router import ChatIntentRouter
+from app.persistence.repository import (
+    ProjectRepository,
+    JobRepository,
+    ComplianceCheckpointRepository,
+)
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
-# Initialize routers
 chat_router = ChatIntentRouter()
-compliance_agent = ComplianceAgent()
-compliance_decorator = ComplianceDecorator(compliance_agent)
 
 
 class ChatRequest(BaseModel):
@@ -31,13 +31,11 @@ class ApprovalRequest(BaseModel):
 
 @router.post("/{project_id}/chat")
 async def chat(project_id: str, req: ChatRequest):
-    """Chat endpoint - parse message and route to workflow action"""
+    """Chat endpoint — parse message and route to workflow action."""
     project = await ProjectRepository.load(project_id)
-
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # Route the chat message
     intent, action_params, response = await chat_router.route(
         req.message,
         project_data={
@@ -48,11 +46,25 @@ async def chat(project_id: str, req: ChatRequest):
         },
     )
 
-    # Execute the action if it's a stage invocation
+    # If the intent maps to a stage invocation, queue the job
     job_id = None
     if action_params.get("type") == "invoke_stage":
-        # TODO: Queue the stage for execution
-        job_id = str(uuid.uuid4())[:12]
+        stage_name = action_params.get("stage", "")
+        from datetime import datetime
+        job_id = str(uuid.uuid4())
+        job = {
+            "job_id": job_id,
+            "project_id": project_id,
+            "stage": stage_name,
+            "status": "queued",
+            "progress": 0.0,
+            "phase": None,
+            "started_at": datetime.utcnow().isoformat(),
+            "completed_at": None,
+            "result": None,
+            "error": None,
+        }
+        await JobRepository.save(job)
 
     return {
         "message_id": str(uuid.uuid4())[:8],
@@ -65,62 +77,82 @@ async def chat(project_id: str, req: ChatRequest):
 
 @router.post("/{project_id}/approve")
 async def approve_compliance(project_id: str, req: ApprovalRequest):
-    """Approve compliance checkpoint and unblock downstream stages"""
+    """
+    Phase 5: Approve a YELLOW compliance checkpoint and unblock downstream stages.
+    Updates the SQLite DB — the worker will pick up blocked jobs on its next poll.
+    """
     project = await ProjectRepository.load(project_id)
-
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # Approve the checkpoint
-    success = compliance_decorator.approve_checkpoint(
+    # Approve in the DB (replaces the old in-memory approach)
+    success = await ComplianceCheckpointRepository.approve(
         req.checkpoint_id,
         req.decisions,
     )
 
     if not success:
-        raise HTTPException(status_code=404, detail="Checkpoint not found")
-
-    # Determine next ready stages
-    ready_stages = []  # TODO: Calculate from DAG
+        raise HTTPException(
+            status_code=404,
+            detail="Checkpoint not found or already approved",
+        )
 
     return {
         "project_id": project_id,
         "checkpoint_id": req.checkpoint_id,
         "status": "approved",
-        "unblocked_stages": ready_stages,
+        "message": "Checkpoint approved. Blocked jobs will resume within a few seconds.",
     }
 
 
 @router.get("/{project_id}/compliance/pending")
 async def get_pending_approvals(project_id: str):
-    """Get pending compliance approvals"""
+    """
+    Phase 5: Get all pending YELLOW compliance checkpoints for a project.
+    Reads from SQLite — survives server restarts.
+    """
     project = await ProjectRepository.load(project_id)
-
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # Get pending checkpoint
-    pending = compliance_decorator.get_approval_required()
-
-    if not pending:
-        return {"project_id": project_id, "pending_approvals": []}
+    pending = await ComplianceCheckpointRepository.get_pending(project_id)
 
     return {
         "project_id": project_id,
         "pending_approvals": [
             {
-                "checkpoint_id": pending.checkpoint_id,
-                "stage": pending.stage,
-                "status": pending.status.value,
-                "issues": [
-                    {
-                        "issue_id": issue.issue_id,
-                        "severity": issue.severity.value,
-                        "description": issue.description,
-                    }
-                    for issue in pending.report.issues
-                ],
-                "created_at": pending.created_at,
+                "checkpoint_id": cp["checkpoint_id"],
+                "stage": cp["stage"],
+                "status": cp["status"],
+                "created_at": cp["created_at"],
+                "report_summary": (
+                    f"Compliance check for {cp['stage']} requires approval"
+                ),
             }
+            for cp in pending
+        ],
+    }
+
+
+@router.get("/{project_id}/compliance/history")
+async def get_compliance_history(project_id: str):
+    """Get all compliance checkpoints for a project (audit trail)."""
+    project = await ProjectRepository.load(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    all_checkpoints = await ComplianceCheckpointRepository.get_all_for_project(project_id)
+
+    return {
+        "project_id": project_id,
+        "checkpoints": [
+            {
+                "checkpoint_id": cp["checkpoint_id"],
+                "stage": cp["stage"],
+                "status": cp["status"],
+                "created_at": cp["created_at"],
+                "approved_at": cp["approved_at"],
+            }
+            for cp in all_checkpoints
         ],
     }

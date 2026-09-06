@@ -66,6 +66,21 @@ def init_db():
         )
     """)
 
+    # Phase 5: persist compliance checkpoints so approvals survive restarts
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS compliance_checkpoints (
+            checkpoint_id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            stage TEXT NOT NULL,
+            status TEXT NOT NULL,          -- yellow | approved | red | green
+            report JSON,                   -- serialised ClearanceReport
+            decisions JSON,                -- approval decisions (list)
+            created_at TEXT NOT NULL,
+            approved_at TEXT,
+            FOREIGN KEY (project_id) REFERENCES projects(project_id)
+        )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -247,3 +262,89 @@ class JobRepository:
             print(f"⚠ Recovered {count} interrupted job(s) from previous run.")
         return count
 
+
+
+class ComplianceCheckpointRepository:
+    """
+    Phase 5: CRUD operations for compliance checkpoints.
+    Checkpoints are persisted so YELLOW blocks survive server restarts.
+    """
+
+    @staticmethod
+    async def save(checkpoint: dict) -> None:
+        """Insert or replace a compliance checkpoint."""
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT OR REPLACE INTO compliance_checkpoints
+            (checkpoint_id, project_id, stage, status, report, decisions, created_at, approved_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                checkpoint["checkpoint_id"],
+                checkpoint["project_id"],
+                checkpoint["stage"],
+                checkpoint["status"],
+                json.dumps(checkpoint.get("report")) if checkpoint.get("report") else None,
+                json.dumps(checkpoint.get("decisions", [])),
+                checkpoint.get("created_at", datetime.utcnow().isoformat()),
+                checkpoint.get("approved_at"),
+            ),
+        )
+        conn.commit()
+        conn.close()
+
+    @staticmethod
+    async def get_pending(project_id: str) -> list:
+        """
+        Return all YELLOW checkpoints for a project that have NOT been approved.
+        The worker uses this to block downstream stages.
+        """
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT * FROM compliance_checkpoints
+            WHERE project_id = ? AND status = 'yellow' AND approved_at IS NULL
+            ORDER BY created_at ASC
+            """,
+            (project_id,),
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        return [dict(row) for row in rows]
+
+    @staticmethod
+    async def approve(checkpoint_id: str, decisions: list) -> bool:
+        """
+        Flip a YELLOW checkpoint to 'approved' so the worker unblocks.
+        Returns True if a row was updated, False if checkpoint not found.
+        """
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE compliance_checkpoints
+            SET status = 'approved', approved_at = ?, decisions = ?
+            WHERE checkpoint_id = ? AND status = 'yellow'
+            """,
+            (datetime.utcnow().isoformat(), json.dumps(decisions), checkpoint_id),
+        )
+        updated = cursor.rowcount
+        conn.commit()
+        conn.close()
+        return updated > 0
+
+    @staticmethod
+    async def get_all_for_project(project_id: str) -> list:
+        """Return all checkpoints for a project (for audit/display)."""
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT * FROM compliance_checkpoints WHERE project_id = ? ORDER BY created_at DESC",
+            (project_id,),
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        return [dict(row) for row in rows]

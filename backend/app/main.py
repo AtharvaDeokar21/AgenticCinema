@@ -12,18 +12,13 @@ from datetime import datetime
 
 from app.persistence.repository import init_db, ProjectRepository, JobRepository
 from app.orchestration.dag import StageType, WorkflowDAG
-from app.orchestration.chat_router import ChatIntentRouter
-from app.orchestration.compliance_decorator import ComplianceDecorator
 from app.shared.models.project import ProjectState, WorkflowConfig
-from app.agents.compliance.agent import ComplianceAgent
 from app.worker import run_worker_loop
+from app.api.routes.chat_approval import router as chat_approval_router
 
 
-# Initialize DAG, routers, and decorator at module level
+# Initialize DAG at module level
 dag = WorkflowDAG()
-chat_router = ChatIntentRouter()
-compliance_agent = ComplianceAgent()
-compliance_decorator = ComplianceDecorator(compliance_agent)
 
 
 @asynccontextmanager
@@ -63,6 +58,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Register routers
+app.include_router(chat_approval_router)
 
 
 # ============ REQUEST/RESPONSE MODELS ============
