@@ -121,7 +121,7 @@ async def main():
 
         agent = AudioAgent()
         audio_req = AudioRequest(
-            video_path="C:\Atharva\AgenticCinema\backend\tmp\dummy.mp4",
+            video_path="C:\Atharva\AgenticCinema\\backend\\tmp\dummy.mp4",
             mode=AudioInputMode.AI_VOICE,
             project_state=project,
         )

@@ -94,7 +94,7 @@ async def demo_workflow():
 
         agent = AudioAgent()
         request = AudioRequest(
-            video_path="C:\Atharva\AgenticCinema\backend\tmp\dummy.mp4",  # Required but not used in AI mode
+            video_path="C:\Atharva\AgenticCinema\\backend\\tmp\dummy.mp4",  # Required but not used in AI mode
             mode=AudioInputMode.AI_VOICE,
             project_state=project,
         )
