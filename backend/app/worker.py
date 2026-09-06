@@ -124,41 +124,159 @@ async def _execute_job(job: dict) -> None:
                     brief = override.get("brief", brief)
                 except Exception:
                     pass
+            
+            target_audience = None
+            genre = None
+            tone = None
+            language = None
+            if project.deal_context and project.deal_context.deal_terms:
+                genre = project.deal_context.deal_terms.get("genre")
+                target_audience = project.deal_context.deal_terms.get("target_audience")
+                tone = project.deal_context.deal_terms.get("tone")
+            if project.workflow_config and project.workflow_config.target_locales:
+                language = project.workflow_config.target_locales[0]
 
             agent = ScriptSuggestorAgent()
-            request = ScriptRequest(creator_profile=project.creator_profile, brief=brief)
+            request = ScriptRequest(
+                creator_profile=project.creator_profile,
+                brief=brief,
+                target_audience=target_audience,
+                genre=genre,
+                tone=tone,
+                language=language,
+                research_required=True
+            )
             result = await agent.run(request)
             project.script = result
             compliance_data = {"script": result}
 
         elif stage == StageType.STORYBOARD:
             from app.agents.storyboard.agent import StoryboardAgent
+            from app.agents.storyboard.schemas import ProductionConstraints
 
             if not project.script:
                 raise ValueError("Script required for storyboard generation")
 
             agent = StoryboardAgent()
-            loop = asyncio.get_event_loop()
-            result = await loop.run_in_executor(None, agent.generate, project.script)
-            project.storyboard = result
-            compliance_data = {"storyboard": result}
+            
+            cameras = []
+            if project.creator_profile and project.creator_profile.equipment:
+                cameras = project.creator_profile.equipment
+                
+            platform = "YouTube"
+            if project.creator_profile and project.creator_profile.platform:
+                platform = project.creator_profile.platform
+                
+            constraints = ProductionConstraints(
+                cameras=cameras,
+                platform=platform
+            )
+            
+            # Use generate_full_pipeline instead of generate, but skip real image gen to save tokens
+            pipeline_result = await agent.generate_full_pipeline(
+                script=project.script,
+                production_constraints=constraints,
+                project_id=project_id,
+                generate_thumbnails=True,
+                generate_shots=True,
+                generate_concept_art=False
+            )
+            
+            shot_plan = pipeline_result["storyboard"]
+            assets = pipeline_result.get("assets")
+            if assets and hasattr(assets, "storyboard_assets"):
+                asset_map = {a.shot_id: a.image_path for a in assets.storyboard_assets if a.shot_id}
+                for shot in shot_plan.shots:
+                    if shot.shot_id in asset_map:
+                        shot.generated_image = asset_map[shot.shot_id]
+                        
+            project.storyboard = shot_plan
+            compliance_data = {"storyboard": shot_plan}
 
-        elif stage == StageType.AUDIO_AI:
+        elif stage in (StageType.AUDIO_AI, StageType.AUDIO_CREATOR):
             from app.agents.audio.agent import AudioAgent
             from app.agents.audio.schemas import AudioRequest, AudioInputMode
 
             if not project.script:
                 raise ValueError("Script required for audio generation")
 
+            audio_mode = AudioInputMode.AI_VOICE
+            video_path_to_use = _DUMMY_VIDEO_PATH
+
+            if stage == StageType.AUDIO_CREATOR:
+                audio_mode = AudioInputMode.CREATOR_VOICE
+                if project.media_manifest and project.media_manifest.assets:
+                    videos = [a for a in project.media_manifest.assets if a.asset_type.lower() == "video"]
+                    if videos:
+                        video_path_to_use = videos[0].file_path
+
             agent = AudioAgent()
             request = AudioRequest(
-                video_path=_DUMMY_VIDEO_PATH,
-                mode=AudioInputMode.AI_VOICE,
+                video_path=video_path_to_use,
+                mode=audio_mode,
                 project_state=project,
             )
             result = await agent.run(request)
             project.audio_master = result.audio_master
             compliance_data = {"audio": result.audio_master}
+
+        elif stage == StageType.SYNC:
+            from app.agents.syncer.agent import SyncerAgent
+            from app.agents.syncer.schemas import SyncRequest, AudioClip
+
+            if not project.script or not project.audio_master:
+                raise ValueError("Script and Audio Master required for Syncer")
+
+            video_path_to_use = _DUMMY_VIDEO_PATH
+            if project.media_manifest and project.media_manifest.assets:
+                videos = [a for a in project.media_manifest.assets if a.asset_type.lower() == "video"]
+                if videos:
+                    video_path_to_use = videos[0].file_path
+
+            audio_clips = []
+            for i, beat in enumerate(project.script.beats):
+                if i < len(project.audio_master.segments):
+                    segment = project.audio_master.segments[i]
+                    audio_clips.append(AudioClip(
+                        beat_id=beat.beat_id,
+                        file_path=project.audio_master.file_path or _DUMMY_VIDEO_PATH,
+                        duration=(segment.end_time - segment.start_time)
+                    ))
+
+            agent = SyncerAgent()
+            request = SyncRequest(
+                video_path=video_path_to_use,
+                script_beats=project.script.beats,
+                audio_clips=audio_clips
+            )
+            result = await agent.run(request)
+            project.sync_report = result
+            compliance_data = {"sync": result}
+
+        elif stage == StageType.DUBBING:
+            from app.agents.cultural_dub.agent import CulturalDubAgent
+            from app.agents.cultural_dub.schemas import DubRequest, TargetLocale
+
+            if not project.audio_master:
+                raise ValueError("Audio Master required for Dubbing")
+
+            target_locales = []
+            if project.workflow_config and project.workflow_config.target_locales:
+                for loc in project.workflow_config.target_locales:
+                    target_locales.append(TargetLocale(language=loc, geography=loc))
+            if not target_locales:
+                target_locales.append(TargetLocale(language="hi", geography="IN"))
+
+            agent = CulturalDubAgent()
+            request = DubRequest(
+                project_id=project_id,
+                audio_master=project.audio_master,
+                target_locales=target_locales,
+                generate_audio=False
+            )
+            result = await agent.run(request)
+            project.dub_tracks = result.tracks
+            compliance_data = {"dubbing": result}
 
         else:
             logger.warning(f"[Worker] Stage {stage_str} not yet handled by worker.")

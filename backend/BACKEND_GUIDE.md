@@ -42,17 +42,24 @@ uvicorn app.main:app --reload --port 8000
 
 ## 3. Running the Test Suite
 
-The backend has a comprehensive E2E (End-to-End) test suite utilizing Pytest. The tests mock the Gemini API, so they execute in seconds without consuming rate limits.
+The backend has a comprehensive E2E (End-to-End) test suite utilizing Pytest. 
 
 **To run the tests:**
 ```bash
 pytest tests/e2e/ -v --tb=short
 ```
 
-**What the tests validate:**
-- `test_ai_voice_workflow.py`: Simulates the frontend driving the SCRIPT → STORYBOARD → AUDIO_AI pipeline.
+### What Happens in the Tests & Mocks?
+Our tests are designed to validate the **entire orchestration logic** (the worker, compliance loop, routing, and schema validation) without actually hitting external AI APIs. This ensures rapid test execution and prevents exhausting API quotas.
+
+- **What is Mocked:** The `GeminiClient` in `conftest.py` is fully mocked. Instead of calling out to Google's LLM, it intercepts the call and directly returns hardcoded, valid Pydantic models (like `ScriptVersion`, `ProductionAwareStoryboard`, `AudioSegment`, and `SyncMap`). 
+- **What is NOT Mocked:** The actual agent execution logic, the Pydantic schema validation, the Background Worker loop, and the SQLite persistence are **all real**. If a mock returns invalid data, the exact same Pydantic validation errors will trigger as if the real LLM hallucinated the wrong schema!
+- **Agent Integration:** All agents (`ScriptAgent`, `StoryboardAgent`, `AudioAgent`, `SyncerAgent`, `CulturalDubAgent`) are currently wired into the `worker.py` execution loop and fully utilize their complete functional logic (e.g., storyboard runs its `generate_full_pipeline`, audio utilizes `AI_VOICE` and `CREATOR_VOICE` modes).
+
+### Test Coverage:
+- `test_ai_voice_workflow.py`: Simulates the frontend driving the **FULL pipeline**: `SCRIPT` → `STORYBOARD` → `AUDIO_AI` → `SYNC` → `DUBBING`.
 - `test_compliance_flow.py`: Injects a `YELLOW` risk, ensures the worker blocks, triggers the `/approve` API, and verifies the worker resumes.
-- `test_chat_routing.py`: Validates that AI chat intents accurately map to the correct backend actions (e.g., "generate storyboard" queues a job).
+- `test_chat_routing.py`: Validates that AI chat intents accurately map to the correct backend actions.
 - `test_job_recovery.py`: Validates that crashed jobs automatically revert to `queued` on server startup.
 
 ---

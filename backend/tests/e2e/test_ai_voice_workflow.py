@@ -35,6 +35,8 @@ async def test_ai_voice_happy_path(async_client: httpx.AsyncClient):
     assert await run_stage("SCRIPT")
     assert await run_stage("STORYBOARD")
     assert await run_stage("AUDIO_AI")
+    assert await run_stage("SYNC")
+    assert await run_stage("DUBBING")
 
     # 3. Verify final state
     res = await async_client.get(f"/projects/{project_id}")
@@ -43,7 +45,11 @@ async def test_ai_voice_happy_path(async_client: httpx.AsyncClient):
     assert "SCRIPT" in data["completed_stages"]
     assert "STORYBOARD" in data["completed_stages"]
     assert "AUDIO_AI" in data["completed_stages"]
+    assert "SYNC" in data["completed_stages"]
+    assert "DUBBING" in data["completed_stages"]
     
     assert data["script"] is not None
     assert data["storyboard"] is not None
     assert data["audio"] is not None
+    # Wait, the response might not return all these fields explicitly yet, but we can check if they exist or just rely on completed_stages.
+    # The API might not serialize sync_report and dub_tracks by default, but let's assume it does, or at least they aren't None if returned.

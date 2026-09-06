@@ -83,7 +83,13 @@ class ComplianceDecorator:
 
             # Create checkpoint
             checkpoint_id = f"checkpoint_{stage}_{datetime.utcnow().timestamp()}"
-            status = ComplianceCheckpointStatus(report.status.value)
+            
+            if report.status == ReportStatus.PASSED:
+                status = ComplianceCheckpointStatus.GREEN
+            elif report.status == ReportStatus.PASSED_WITH_CONDITIONS:
+                status = ComplianceCheckpointStatus.YELLOW
+            else:
+                status = ComplianceCheckpointStatus.RED
 
             checkpoint = ComplianceCheckpoint(
                 checkpoint_id=checkpoint_id,
