@@ -3,7 +3,8 @@ Simple test to verify Phase 1 works: DAG, project creation, stage invocation.
 """
 import asyncio
 import sys
-sys.path.insert(0, '/c/Atharva/AgenticCinema/backend')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from app.shared.models.project import ProjectState, WorkflowConfig
 from app.orchestration.dag import WorkflowDAG, StageType

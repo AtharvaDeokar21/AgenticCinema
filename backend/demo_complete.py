@@ -84,7 +84,7 @@ async def demo_phase1():
 
         agent = AudioAgent()
         req = AudioRequest(
-            video_path="C:\Atharva\AgenticCinema\\backend\\tmp\dummy.mp4",  # Required but not used in AI mode
+            video_path=str(Path(__file__).resolve().parent / "tmp" / "dummy.mp4"),  # Required but not used in AI mode
             mode=AudioInputMode.AI_VOICE,
             project_state=project,
         )

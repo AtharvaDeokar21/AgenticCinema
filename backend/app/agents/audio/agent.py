@@ -125,7 +125,7 @@ class AudioAgent(BaseAgent):
             raise TypeError("Gemini returned an invalid SegmentAnalysisReport")
         return result
 
-    def _is_resource_limit_error(exc: Exception) -> bool:
+    def _is_resource_limit_error(self, exc: Exception) -> bool:
         """Return True when Gemini rejected the request because of quota/resource limits."""
         message = str(exc).lower()
 
@@ -184,7 +184,7 @@ class AudioAgent(BaseAgent):
                     model=self.TTS_MODEL,
                 )
             except Exception as exc:
-                if not _is_resource_limit_error(exc):
+                if not self._is_resource_limit_error(exc):
                     raise
 
                 resource_limit_reached = True
@@ -214,7 +214,7 @@ class AudioAgent(BaseAgent):
                         model=self.TTS_MODEL,
                     )
                 except Exception as exc:
-                    if not _is_resource_limit_error(exc):
+                    if not self._is_resource_limit_error(exc):
                         raise
 
                     resource_limit_reached = True

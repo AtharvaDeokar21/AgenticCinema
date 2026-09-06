@@ -100,34 +100,31 @@ class ComplianceDecorator:
             print(f"⚠ Compliance check failed for {stage}: {e}")
             return None
 
-    def _build_request(self, stage: str, project_data: Dict[str, Any]) -> Dict:
+    def _build_request(self, stage: str, project_data: Dict[str, Any]):
         """Build ComplianceRequest from project data"""
+        from app.agents.compliance.schemas import ComplianceRequest
+        from app.shared.models.stages import ProjectStage
+        import json
 
-        request = {
-            "stage": stage,
-            "payload": {},
-            "image_paths": [],
-            "audio_paths": [],
-            "prior_tracked_assets": [],
-        }
+        payload_dict = {}
 
         # Extract relevant data based on stage
         if stage == "SCRIPT" and "script" in project_data:
-            request["payload"] = {
+            payload_dict = {
                 "script_text": project_data["script"].full_text[:500]
                 if hasattr(project_data["script"], "full_text")
                 else "Script content"
             }
 
         elif stage == "STORYBOARD" and "storyboard" in project_data:
-            request["payload"] = {
+            payload_dict = {
                 "num_shots": len(project_data["storyboard"].shots)
                 if hasattr(project_data["storyboard"], "shots")
                 else 0
             }
 
         elif stage in ("AUDIO_AI", "AUDIO_CREATOR") and "audio" in project_data:
-            request["payload"] = {
+            payload_dict = {
                 "audio_segments": len(
                     project_data["audio"].segments
                     if hasattr(project_data["audio"], "segments")
@@ -136,11 +133,21 @@ class ComplianceDecorator:
             }
 
         elif stage == "DUBBING" and "dub_tracks" in project_data:
-            request["payload"] = {
+            payload_dict = {
                 "dub_locales": len(project_data.get("dub_tracks", []))
             }
 
-        return request
+        try:
+            stage_enum = ProjectStage(stage)
+        except Exception:
+            stage_enum = ProjectStage.SCRIPT
+
+        return ComplianceRequest(
+            project_id=project_data.get("project_id", "demo_project"),
+            stage=stage_enum,
+            payload=json.dumps(payload_dict),
+            prior_assets=[],
+        )
 
     def is_blocked(self, stage: str, project_data: Dict[str, Any]) -> bool:
         """Check if stage is blocked by compliance RED"""
