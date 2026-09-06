@@ -1,11 +1,12 @@
 """
-Simplified main.py - minimal FastAPI setup with core routes.
+main.py - FastAPI entry point with Phase 4 persistent worker.
 """
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from pydantic import BaseModel
 from typing import Optional
+import asyncio
 import uuid
 from datetime import datetime
 
@@ -15,11 +16,11 @@ from app.orchestration.chat_router import ChatIntentRouter
 from app.orchestration.compliance_decorator import ComplianceDecorator
 from app.shared.models.project import ProjectState, WorkflowConfig
 from app.agents.compliance.agent import ComplianceAgent
+from app.worker import run_worker_loop
 
 
 # Initialize DAG, routers, and decorator at module level
 dag = WorkflowDAG()
-running_jobs = {}
 chat_router = ChatIntentRouter()
 compliance_agent = ComplianceAgent()
 compliance_decorator = ComplianceDecorator(compliance_agent)
@@ -27,12 +28,25 @@ compliance_decorator = ComplianceDecorator(compliance_agent)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
+    # ── Startup ──────────────────────────────────────────────────────────
     init_db()
     print("✓ Database initialized")
+
+    # Recover any jobs that were 'running' when the server last crashed
+    await JobRepository.reset_interrupted_jobs()
+
+    # Start the persistent background worker
+    worker_task = asyncio.create_task(run_worker_loop())
+    print("✓ Background worker started")
+
     yield
-    # Shutdown
-    pass
+
+    # ── Shutdown ─────────────────────────────────────────────────────────
+    worker_task.cancel()
+    try:
+        await worker_task
+    except asyncio.CancelledError:
+        print("✓ Background worker stopped")
 
 
 app = FastAPI(
@@ -156,36 +170,35 @@ async def invoke_stage(project_id: str, stage_name: str, req: InvokeStageRequest
             },
         )
 
-    # Create job
-    job_id = str(uuid.uuid4())[:12]
+    # Write job to SQLite — the worker loop will pick it up automatically
+    job_id = str(uuid.uuid4())
     job = {
         "job_id": job_id,
         "project_id": project_id,
         "stage": stage.value,
         "status": "queued",
         "progress": 0.0,
+        "phase": None,
         "started_at": datetime.utcnow().isoformat(),
+        "completed_at": None,
         "result": None,
         "error": None,
     }
-    running_jobs[job_id] = job
-
-    # Save project with stage started
-    project.completed_stages.append(stage.value)
-    await ProjectRepository.save(project)
+    await JobRepository.save(job)
 
     return {
         "project_id": project_id,
         "stage": stage.value,
         "job_id": job_id,
         "status": "queued",
+        "message": "Job queued. The worker will process it within a few seconds.",
     }
 
 
 @app.get("/projects/{project_id}/jobs/{job_id}")
 async def get_job_status(project_id: str, job_id: str):
-    """Poll job status"""
-    job = running_jobs.get(job_id)
+    """Poll job status — reads from SQLite, survives server restarts."""
+    job = await JobRepository.load(job_id)
 
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -197,6 +210,9 @@ async def get_job_status(project_id: str, job_id: str):
         "status": job["status"],
         "progress": job["progress"],
         "started_at": job["started_at"],
+        "completed_at": job["completed_at"],
+        "result": job["result"],
+        "error": job["error"],
     }
 
 

@@ -215,3 +215,35 @@ class JobRepository:
         conn.close()
 
         return [dict(row) for row in rows]
+
+    @staticmethod
+    async def get_queued_jobs() -> list:
+        """Get all jobs with status='queued' — used by the worker loop."""
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT * FROM jobs WHERE status = 'queued' ORDER BY started_at ASC"
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        return [dict(row) for row in rows]
+
+    @staticmethod
+    async def reset_interrupted_jobs() -> int:
+        """
+        On server startup, any jobs still marked 'running' were interrupted
+        by a crash or restart. Reset them to 'queued' so the worker retries them.
+        Returns the number of jobs reset.
+        """
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE jobs SET status = 'queued' WHERE status = 'running'"
+        )
+        count = cursor.rowcount
+        conn.commit()
+        conn.close()
+        if count:
+            print(f"⚠ Recovered {count} interrupted job(s) from previous run.")
+        return count
+
