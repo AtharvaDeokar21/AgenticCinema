@@ -123,12 +123,12 @@ All endpoints read/write SQLite — fully persistent across server restarts.
 
 ### Phase 6 — API Polish & Missing Endpoints
 **Priority: HIGH — needed before frontend integration**
-- [ ] `GET /projects` — list all projects (currently missing)
-- [ ] Proper 422 validation error responses
-- [ ] `DELETE /projects/{id}` — cleanup endpoint
-- [ ] `GET /projects/{id}/jobs` — list all jobs for a project
-- [ ] Consolidate `main.py` inline routes + `app/api/routes/projects.py` (currently duplicated)
-- [ ] Consistent error response schema `{ "error": "...", "detail": "..." }` across all endpoints
+- [x] `GET /projects` — list all projects (currently missing)
+- [x] Proper 422 validation error responses
+- [x] `DELETE /projects/{id}` — cleanup endpoint
+- [x] `GET /projects/{id}/jobs` — list all jobs for a project
+- [x] Consolidate `main.py` inline routes + `app/api/routes/projects.py` (currently duplicated)
+- [x] Consistent error response schema `{ "error": "...", "detail": "..." }` across all endpoints
 
 ### Phase 7 — E2E API Integration Tests
 **Priority: HIGH — nothing meaningful is tested through the HTTP layer**

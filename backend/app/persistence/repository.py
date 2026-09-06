@@ -203,6 +203,19 @@ class ProjectRepository:
 
         return [dict(row) for row in rows]
 
+    @staticmethod
+    async def delete_project(project_id: str) -> bool:
+        """Delete project and all associated records"""
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM compliance_checkpoints WHERE project_id = ?", (project_id,))
+        cursor.execute("DELETE FROM jobs WHERE project_id = ?", (project_id,))
+        cursor.execute("DELETE FROM projects WHERE project_id = ?", (project_id,))
+        deleted = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        return deleted
+
 
 class JobRepository:
     """CRUD operations for Jobs"""
