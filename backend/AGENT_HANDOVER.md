@@ -132,10 +132,10 @@ All endpoints read/write SQLite — fully persistent across server restarts.
 
 ### Phase 7 — E2E API Integration Tests
 **Priority: HIGH — nothing meaningful is tested through the HTTP layer**
-- [ ] `tests/e2e/test_ai_voice_workflow.py` — create → script → storyboard → audio via API
-- [ ] `tests/e2e/test_compliance_flow.py` — YELLOW block → approve → unblock
-- [ ] `tests/e2e/test_chat_routing.py` — all 3 chat intents via API
-- [ ] `tests/e2e/test_job_recovery.py` — interrupt + restart + verify recovery
+- [x] Create `tests/e2e/test_ai_voice_workflow.py` (simulate frontend calling SCRIPT → STORYBOARD → AUDIO_AI)
+- [x] Create `tests/e2e/test_compliance_flow.py` (queue a stage, inject a YELLOW checkpoint, ensure worker blocks, hit `/approve`, ensure worker resumes)
+- [x] Create `tests/e2e/test_chat_routing.py` (verify the three chat intents: invoke, clarify, reject)
+- [x] Create `tests/e2e/test_job_recovery.py` (insert a stuck `running` job, restart the worker, verify it goes back to `queued`)
 
 ### Phase 8 — WebSocket Real-Time Updates (optional for prototype)
 - [ ] `GET /ws/projects/{id}` — push job status changes without polling
