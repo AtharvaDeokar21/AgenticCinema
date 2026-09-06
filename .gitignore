@@ -42,6 +42,8 @@ temp/
 *.mp3
 *.m4a
 *.aac
+*.jpg
+*.jpeg
 
 # Generated artifacts
 backend/data/
@@ -70,3 +72,7 @@ out
 .DS_Store
 *.log
 .env*.local
+
+
+# image generation outputs
+storage/
