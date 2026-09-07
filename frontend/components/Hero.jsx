@@ -1,5 +1,5 @@
 import Motes from "@/components/Motes";
-import { DirectorsChair, FilmReel, StageLamp, TicketStub } from "@/components/props";
+import { DirectorsChair, FilmReel, StageLamp } from "@/components/props";
 
 /* Six planes of stage. Everything with data-par is driven by StageDirection. */
 export default function Hero() {
@@ -21,14 +21,13 @@ export default function Hero() {
       <div className="stage__type" data-par data-speed="0.34" data-mouse="14">
         <p className="overtitle">A one-person production company, staffed</p>
         <h1 className="marquee-title">
-          <span>Agentic</span>
-          <span>Cinema</span>
+          <span>CreatorCrew</span>
         </h1>
-        <p className="logline">
+        {/* <p className="logline">
           Seven agents share one script and one shared state. They find the deal, time the
           words, plan the shot, sync the audio, dub it for your actual audience, and clear
-          the rights before any of it costs a reshoot. You still call action.
-        </p>
+          the rights before any of it costs a reshoot.
+        </p> */}
       </div>
 
       <div className="plane plane--floor" data-par data-speed="-0.14" aria-hidden="true" />
@@ -38,10 +37,6 @@ export default function Hero() {
         <FilmReel className="prop-reel" />
       </div>
 
-      <div className="scroll-cue" aria-hidden="true">
-        <TicketStub />
-        KEEP SCROLLING
-      </div>
     </header>
   );
 }
