@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 from typing import Callable, Optional, TYPE_CHECKING
+from urllib import request
 
 from app.agents.base import BaseAgent
 from app.agents.audio.prompts import build_segment_analysis_prompt, build_tts_prompt
@@ -124,6 +125,23 @@ class AudioAgent(BaseAgent):
             raise TypeError("Gemini returned an invalid SegmentAnalysisReport")
         return result
 
+    def _is_resource_limit_error(self, exc: Exception) -> bool:
+        """Return True when Gemini rejected the request because of quota/resource limits."""
+        message = str(exc).lower()
+
+        resource_limit_markers = (
+            "resource exhausted",
+            "resource_exhausted",
+            "quota exceeded",
+            "quota_exceeded",
+            "rate limit",
+            "rate_limit",
+            "too many requests",
+            "429",
+        )
+
+        return any(marker in message for marker in resource_limit_markers)
+    
     async def _run_ai_voice(self, request: AudioRequest) -> AudioResult:
         """Generate speech beat-by-beat and place it on the script timeline."""
         script = request.project_state.script
@@ -137,8 +155,12 @@ class AudioAgent(BaseAgent):
         timed_inputs: list[tuple[str, float, float]] = []
         rewrite_required: list[str] = []
 
+        resource_limit_reached = False
+        generation_error: str | None = None
+
         for beat in script.beats:
             slot_duration = beat.end_time - beat.start_time
+
             if slot_duration <= 0:
                 raise ValueError(
                     f"Script beat {beat.beat_id} has an invalid timestamp range"
@@ -148,39 +170,68 @@ class AudioAgent(BaseAgent):
                 request.video_path,
                 f"tts_{beat.beat_id}.wav",
             )
+
             prompt = build_tts_prompt(
                 beat.text,
                 beat.expression or beat.audio_intent,
             )
-            await tts.generate(
-                prompt,
-                beat_path,
-                voice=self.DEFAULT_VOICE,
-                model=self.TTS_MODEL,
-            )
+
+            try:
+                await tts.generate(
+                    prompt,
+                    beat_path,
+                    voice=self.DEFAULT_VOICE,
+                    model=self.TTS_MODEL,
+                )
+            except Exception as exc:
+                if not self._is_resource_limit_error(exc):
+                    raise
+
+                resource_limit_reached = True
+                generation_error = str(exc)
+
+                # Stop immediately. Do not attempt pacing retry or later beats.
+                break
+
             duration = get_wav_duration(beat_path)
             pacing_adjusted = False
 
-            # Never rewrite the script to solve a timing problem. First ask TTS
-            # to change only the pacing while preserving the exact words.
+            # Never rewrite the script to solve a timing problem.
             if duration > slot_duration:
                 pacing_adjusted = True
+
                 faster_prompt = build_tts_prompt(
                     beat.text,
                     beat.expression or beat.audio_intent,
                     pacing_tag=self._pacing_tag(duration, slot_duration),
                 )
-                await tts.generate(
-                    faster_prompt,
-                    beat_path,
-                    voice=self.DEFAULT_VOICE,
-                    model=self.TTS_MODEL,
-                )
-                duration = get_wav_duration(beat_path)
+
+                try:
+                    await tts.generate(
+                        faster_prompt,
+                        beat_path,
+                        voice=self.DEFAULT_VOICE,
+                        model=self.TTS_MODEL,
+                    )
+                except Exception as exc:
+                    if not self._is_resource_limit_error(exc):
+                        raise
+
+                    resource_limit_reached = True
+                    generation_error = str(exc)
+
+                    # We already have the first generation for this beat.
+                    # Keep it rather than discarding it.
+                    # Mark it as requiring rewrite because it didn't fit.
+                    rewrite_required.append(beat.beat_id)
+
+                if not resource_limit_reached:
+                    duration = get_wav_duration(beat_path)
 
             within_slot = duration <= slot_duration
             rewrite = not within_slot
-            if rewrite:
+
+            if rewrite and beat.beat_id not in rewrite_required:
                 rewrite_required.append(beat.beat_id)
 
             generated_segments.append(
@@ -195,16 +246,58 @@ class AudioAgent(BaseAgent):
                     file_path=beat_path,
                 )
             )
-            timed_inputs.append((beat_path, beat.start_time, beat.end_time))
 
-        final_audio_path = self._derived_path(request.video_path, "generated.wav")
-        assemble_timed_wav(timed_inputs, final_audio_path)
+            timed_inputs.append(
+                (beat_path, beat.start_time, beat.end_time)
+            )
+
+            if resource_limit_reached:
+                request.project_state.errors.append(
+                    "AI voice generation stopped early because Gemini "
+                    "resource/quota limits were reached."
+                )
+
+        if not timed_inputs:
+            raise RuntimeError(
+                "Gemini resource limit was reached before any audio beat "
+                "could be generated."
+            )
+
+        final_audio_path = self._derived_path(
+            request.video_path,
+            "generated.wav",
+        )
+
+        assemble_timed_wav(
+            timed_inputs,
+            final_audio_path,
+        )
+
+        from app.shared.models.audio import AudioSegment
 
         audio_master = self._audio_master_from_file(final_audio_path)
         audio_master.cleaned = False
+        
+        # Populate the AudioMaster segments
+        for seg in generated_segments:
+            audio_master.segments.append(
+                AudioSegment(
+                    segment_id=seg.beat_id,
+                    start_time=seg.start_time,
+                    end_time=seg.end_time,
+                    transcript="" # Could be populated with beat.text if needed
+                )
+            )
+            
         request.project_state.audio_master = audio_master
 
-        status = "complete" if not rewrite_required else "complete_with_rewrite_required"
+        if resource_limit_reached:
+            status = "partial_resource_limit"
+        elif rewrite_required:
+            status = "complete_with_rewrite_required"
+        else:
+            status = "complete"
+
         return AudioResult(
             mode=AudioInputMode.AI_VOICE,
             status=status,
@@ -214,8 +307,9 @@ class AudioAgent(BaseAgent):
             generated_segments=generated_segments,
             rewrite_required_beat_ids=rewrite_required,
             project_state=request.project_state,
+            error=generation_error,
         )
-
+        
     @staticmethod
     def _pacing_tag(duration: float, slot_duration: float) -> str:
         ratio = duration / slot_duration

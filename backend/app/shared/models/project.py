@@ -12,8 +12,16 @@ from .sync import SyncReport
 from .audio import AudioMaster
 from .dub import DubTrack
 from .compliance import ClearanceReport
-from .creator_scout import CreatorRecommendation
+from .creator_scout import CreatorRecommendation, OpportunityQueue
 from .stages import ProjectStage
+
+
+class WorkflowConfig(BaseModel):
+    """Workflow configuration for a project"""
+    audio_mode: str = "AI_VOICE"  # AI_VOICE or CREATOR_VOICE
+    enable_creator_scout: bool = False
+    target_locales: List[str] = Field(default_factory=list)
+    request_approval_for_yellow: bool = True
 
 
 class ProjectState(BaseModel):
@@ -43,6 +51,8 @@ class ProjectState(BaseModel):
         default_factory=list
     )
 
+    opportunity_queue: Optional[OpportunityQueue] = None
+
     current_stage: ProjectStage = ProjectStage.CREATED
 
     updated_at: datetime = Field(
@@ -50,3 +60,12 @@ class ProjectState(BaseModel):
     )
 
     errors: List[str] = Field(default_factory=list)
+
+    # New fields for DAG-based execution
+    completed_stages: List[str] = Field(default_factory=list)
+    blocked_stages: List[str] = Field(default_factory=list)
+    workflow_config: WorkflowConfig = Field(default_factory=WorkflowConfig)
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
+    version: int = 1
