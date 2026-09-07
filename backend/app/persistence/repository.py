@@ -40,6 +40,7 @@ def init_db():
             audio_master JSON,
             dub_tracks JSON,
             clearance_report JSON,
+            opportunity_queue JSON,
             current_stage TEXT,
             completed_stages JSON,
             blocked_stages JSON,
@@ -100,9 +101,9 @@ class ProjectRepository:
             INSERT OR REPLACE INTO projects
             (project_id, project_name, creator_profile, deal_context, workflow_config,
              script, storyboard, media_manifest, sync_report, audio_master, dub_tracks,
-             clearance_report, current_stage, completed_stages, blocked_stages, errors,
+             clearance_report, opportunity_queue, current_stage, completed_stages, blocked_stages, errors,
              created_at, updated_at, version)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             project.project_id,
             project.project_name,
@@ -116,6 +117,7 @@ class ProjectRepository:
             project.audio_master.model_dump_json() if project.audio_master else None,
             json.dumps([t.model_dump() for t in project.dub_tracks]) if project.dub_tracks else None,
             project.clearance_report.model_dump_json() if project.clearance_report else None,
+            project.opportunity_queue.model_dump_json() if project.opportunity_queue else None,
             project.current_stage.value if project.current_stage else None,
             json.dumps(project.completed_stages),
             json.dumps(project.blocked_stages),
@@ -169,6 +171,7 @@ class ProjectRepository:
         from ..shared.models.audio import AudioMaster
         from ..shared.models.dub import DubTrack
         from ..shared.models.compliance import ClearanceReport
+        from ..shared.models.creator_scout import OpportunityQueue
 
         return ProjectState(
             project_id=row["project_id"],
@@ -182,6 +185,7 @@ class ProjectRepository:
             audio_master=_parse("audio_master", AudioMaster),
             dub_tracks=_parse_list("dub_tracks", DubTrack),
             clearance_report=_parse("clearance_report", ClearanceReport),
+            opportunity_queue=_parse("opportunity_queue", OpportunityQueue),
             current_stage=row["current_stage"] or "CREATED",
             completed_stages=json.loads(row["completed_stages"]) if row["completed_stages"] else [],
             blocked_stages=json.loads(row["blocked_stages"]) if row["blocked_stages"] else [],

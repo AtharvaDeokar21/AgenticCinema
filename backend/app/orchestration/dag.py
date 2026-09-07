@@ -17,6 +17,7 @@ class StageType(str, Enum):
     DUBBING = "DUBBING"
     SYNC = "SYNC"
     MEDIA_UPLOAD = "MEDIA_UPLOAD"
+    CREATOR_SCOUT = "CREATOR_SCOUT"
     COMPLETED = "COMPLETED"
 
 

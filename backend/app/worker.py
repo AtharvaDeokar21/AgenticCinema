@@ -284,6 +284,27 @@ async def _execute_job(job: dict) -> None:
             project.dub_tracks = result.tracks
             compliance_data = {"dubbing": result}
 
+        elif stage == StageType.CREATOR_SCOUT:
+            from app.agents.creator_scout.agent import CreatorScoutAgent
+            from app.agents.creator_scout.schemas import CreatorScoutRequest
+
+            context = job.get("action", {}).get("params", {}).get("creator_context")
+            
+            request = CreatorScoutRequest(
+                creator_id="dynamic_creator_1",
+                creator_name="Dynamic Creator",
+                platforms=["YouTube", "TikTok"],
+                niche=context or "Cinematic storytelling and filmmaking",
+                audience_summary="Broad demographic" if not context else context,
+                median_views=500000,
+                engagement_rate=0.05
+            )
+
+            agent = CreatorScoutAgent()
+            result = await agent.run(request)
+            project.opportunity_queue = result
+            compliance_data = {"creator_scout": result}
+
         else:
             logger.warning(f"[Worker] Stage {stage_str} not yet handled by worker.")
 

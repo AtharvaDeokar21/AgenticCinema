@@ -12,7 +12,7 @@ from .sync import SyncReport
 from .audio import AudioMaster
 from .dub import DubTrack
 from .compliance import ClearanceReport
-from .creator_scout import CreatorRecommendation
+from .creator_scout import CreatorRecommendation, OpportunityQueue
 from .stages import ProjectStage
 
 
@@ -50,6 +50,8 @@ class ProjectState(BaseModel):
     creator_recommendations: List[CreatorRecommendation] = Field(
         default_factory=list
     )
+
+    opportunity_queue: Optional[OpportunityQueue] = None
 
     current_stage: ProjectStage = ProjectStage.CREATED
 

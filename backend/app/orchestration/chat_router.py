@@ -19,6 +19,7 @@ class ChatIntent(str, Enum):
     GENERATE_AUDIO = "generate_audio"
     GENERATE_SYNC = "generate_sync"
     GENERATE_DUBBING = "generate_dubbing"
+    SCOUT_BRANDS = "scout_brands"
     CLARIFY = "clarify"
 
 
@@ -62,6 +63,11 @@ class ChatIntentRouter:
             r"(?:generate|create|make)\s+dub(?:bing|s)?",
             r"(?:generate|create|make)\s+translation",
             r"translate",
+        ],
+        ChatIntent.SCOUT_BRANDS: [
+            r"(?:scout|find|discover)\s+brands?",
+            r"(?:scout|find|discover)\s+sponsorships?",
+            r"(?:scout|find|discover)\s+deals?",
         ],
         ChatIntent.CHANGE_AUDIO_MODE: [
             r"(?:use|switch|change).*(?:creator|my).*voice",
@@ -179,6 +185,14 @@ class ChatIntentRouter:
         elif intent == ChatIntent.GENERATE_DUBBING:
             action["stage"] = "DUBBING"
             action["params"] = {}
+
+        elif intent == ChatIntent.SCOUT_BRANDS:
+            action["stage"] = "CREATOR_SCOUT"
+            # Extract everything after "scout brands for" or just pass the whole message
+            context_match = re.search(r"(?:for)\s+(.+)", message, re.IGNORECASE)
+            action["params"] = {
+                "creator_context": context_match.group(1) if context_match else message
+            }
 
         elif intent == ChatIntent.CHANGE_AUDIO_MODE:
             action["type"] = "update_config"

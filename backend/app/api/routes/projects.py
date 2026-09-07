@@ -134,6 +134,7 @@ async def get_project(project_id: str):
         "audio": audio_data,
         "sync_report": project.sync_report.model_dump(mode="json") if project.sync_report else None,
         "dub_tracks": [dt.model_dump(mode="json") for dt in project.dub_tracks] if project.dub_tracks else [],
+        "opportunity_queue": project.opportunity_queue.model_dump(mode="json") if project.opportunity_queue else None,
         "created_at": project.created_at.isoformat(),
         "updated_at": project.updated_at.isoformat(),
     }
