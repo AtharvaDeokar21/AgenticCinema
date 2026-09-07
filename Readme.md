@@ -1,8 +1,8 @@
-# 🎬 Agentic Cinema
+# 🎬 CreatorCrew
 
 > **An agentic AI production studio for creators, filmmakers, and screenwriters.**
 
-Agentic Cinema is a multi-agent AI system designed to assist creators across the content-production lifecycle, from discovering opportunities and developing scripts to storyboarding, audio production, cultural localization, synchronization, compliance, and creator discovery.
+CreatorCrew is a multi-agent AI system designed to assist creators across the content-production lifecycle, from discovering opportunities and developing scripts to storyboarding, audio production, cultural localization, synchronization, compliance, and creator discovery.
 
 The system is built around **Gemini + Google Agent Development Kit (ADK) + Parallel Web Systems**, with deterministic media tooling handling operations that should not be delegated to an LLM.
 
