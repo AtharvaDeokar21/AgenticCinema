@@ -1,133 +1,158 @@
-1. **Activate the Virtual Environment:**
+# Agentic Cinema: Final Demo Walkthrough
 
-   ```bash
-   source .venv/bin/activate
-   ```
+This document outlines the exact endpoints and payloads you should use during your final demo presentation to showcase the Agentic Cinema backend. It assumes the server is running locally on port 8000.
 
-2. **Install Dependencies:**
+## Setup & Initialization
 
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-**To start the server:**
-
+**1. Start the server:**
 ```bash
 uvicorn app.main:app --reload --port 8000
 ```
+- API will be available at: `http://localhost:8000`
+- Swagger UI (for demoing): `http://localhost:8000/docs`
 
-- The API will be available at: `http://localhost:8000`
-- Interactive API Documentation (Swagger UI): `http://localhost:8000/docs`
+**2. Create a new Project (Workspace):**
+- **Endpoint:** `POST /projects`
+- **Payload:**
+```json
+{
+  "project_name": "Cyberpunk Coffee Ad",
+  "workflow_config": {
+    "audio_mode": "AI_VOICE",
+    "request_approval_for_yellow": true
+  }
+}
+```
+*Note down the `project_id` returned for the rest of the demo.*
 
-# Agentic Cinema: Chat & Workflow Scenarios Walkthrough
+---
 
-This document outlines all possible scenarios, prompts, outputs, and subsequent steps when testing the Agentic Cinema backend via the Swagger UI.
-
-## Scenario 1: AI-Generated Voice Workflow
-
-In this scenario, you want to generate a script, storyboard, and use Google Gemini to generate **AI Voices** (Text-to-Speech) for your characters.
+## Scenario 1: The Core Pipeline (Script -> Storyboard -> Audio)
+Showcase the primary multi-agent workflow where users orchestrate generation entirely via natural language chat.
 
 ### 1. Generate the Script
+- **Endpoint:** `POST /projects/{project_id}/chat`
+- **Payload:** 
+```json
+{ 
+  "message": "Write a 3-beat script about a futuristic cyberpunk coffee brand." 
+}
+```
+*Wait ~10 seconds. Check progress via `GET /projects/{project_id}` until `"SCRIPT"` appears in `completed_stages`.*
 
-* **Endpoint:** `POST /projects/{id}/chat`
-- **Payload:** `{ "message": "Write a 3-beat script about a futuristic cyberpunk coffee brand." }`
-- **Output:** A background job is queued for the `SCRIPT` stage.
-- **Next Step:** Hit `GET /projects/{id}` to see the generated `script.beats`.
+### 2. Generate the Storyboard & Thumbnails
+- **Endpoint:** `POST /projects/{project_id}/chat`
+- **Payload:** 
+```json
+{ 
+  "message": "Generate storyboard for this script." 
+}
+```
+*Wait ~15 seconds. Check progress via `GET /projects/{project_id}`.*
 
-### 2. Generate the Storyboard
-
-* **Endpoint:** `POST /projects/{id}/chat`
-- **Payload:** `{ "message": "Generate storyboard for this script." }`
-- **Output:** A background job is queued for the `STORYBOARD` stage.
-- **Next Step:** Hit `GET /projects/{id}` to see the generated `storyboard.shots`.
-
-### 3. Generate AI Voices (Audio)
-
-* **Endpoint:** `POST /projects/{id}/chat`
-- **Payload:** `{ "message": "Generate audio for this script." }`
-- **Output:** A background job is queued for the `AUDIO_AI` stage. The `AudioAgent` generates voice lines using Gemini TTS and creates `AudioMaster` segments.
-- **Next Step:** Upload a video to sync the AI voices to.
-
-### 4. Upload a Video
-
-* **Endpoint:** `POST /projects/{id}/media` (multipart/form-data)
-- **Payload:** Attach an `.mp4` video.
-- **Output:** The video is saved to `project.media_manifest.assets`.
-- **Next Step:** Tell the agent to sync the audio to the video.
-
-### 5. Sync the Audio to the Video
-
-* **Endpoint:** `POST /projects/{id}/chat`
-- **Payload:** `{ "message": "Sync audio." }`
-- **Output:** The `SyncerAgent` watches the video using Gemini Vision, identifies lip movements, and returns a `sync_report` with exact placement timestamps.
-- **Next Step:** Hit `GET /projects/{id}` to see the `sync_report`. If successful, proceed to Dubbing!
-
-### 6. Cultural Dubbing
-
-* **Endpoint:** `POST /projects/{id}/chat`
-- **Payload:** `{ "message": "Generate dubbing." }`
-- **Output:** The `CulturalDubAgent` translates the synced audio track into the target locales (default: Spanish) and returns `dub_tracks`.
-- **Next Step:** Hit `GET /projects/{id}` to see the `dub_tracks`.
+### 3. Generate the AI Voiceover
+- **Endpoint:** `POST /projects/{project_id}/chat`
+- **Payload:** 
+```json
+{ 
+  "message": "Generate audio for this script." 
+}
+```
 
 ---
 
-## Scenario 2: Creator Voice Workflow
+## Scenario 2: Dynamic Cultural Dubbing
+Demonstrate the LLM-driven Regex parsing by passing natural language instructions to perform cultural translation and dubbing.
 
-In this scenario, you perform the script yourself on camera, and the backend extracts **your voice** from the video!
-
-### 1. Set Audio Mode to Creator Voice
-
-* **Endpoint:** `POST /projects/{id}/chat`
-- **Payload:** `{ "message": "Use my voice." }`
-- **Output:** Returns a response indicating `audio_mode` was updated to `CREATOR_VOICE`.
-
-### 2. Upload Your Performance Video
-
-* **Endpoint:** `POST /projects/{id}/media` (multipart/form-data)
-- **Payload:** Attach your `.mp4` video of you speaking the lines.
-- **Output:** The video is saved to `project.media_manifest.assets`.
-
-### 3. Extract & Sync (AUDIO_CREATOR -> SYNC)
-
-* **Endpoint:** `POST /projects/{id}/chat`
-- **Payload:** `{ "message": "Sync audio." }`
-- **Output:** Because you are in `CREATOR_VOICE` mode, the `AudioAgent` extracts your real voice from the video, and the `SyncerAgent` maps your lip movements to the script beats.
-- **Next Step:** Hit `GET /projects/{id}` to see both the `audio_master` and the `sync_report`.
+- **Endpoint:** `POST /projects/{project_id}/chat`
+- **Payload:** 
+```json
+{ 
+  "message": "Translate the audio into Japanese." 
+}
+```
+*(You can also use "Dub in Spanish", "Translate to Hindi", etc. The regex engine will extract the exact language and dynamically inject it into the pipeline).*
 
 ---
 
-## Scenario 3: Regenerating / Iterating
+## Scenario 3: Human-in-the-Loop Compliance
+Demonstrate how the system blocks on sensitive topics (e.g. Creator Scouting) and waits for human approval before proceeding.
 
-If you are unhappy with the script or the storyboard, you can ask the router to redo it!
+### 1. Trigger a sensitive job
+- **Endpoint:** `POST /projects/{project_id}/chat`
+- **Payload:** 
+```json
+{ 
+  "message": "Find brand deals for a cinematic filmmaker." 
+}
+```
 
-### Redoing the Script
+### 2. View Blocked Jobs
+- **Endpoint:** `GET /projects/{project_id}/compliance/pending`
+- *Shows a YELLOW flagged compliance checkpoint waiting for approval.*
 
-* **Endpoint:** `POST /projects/{id}/chat`
-- **Payload:** `{ "message": "Regenerate the script, make it more upbeat." }`
-- **Output:** The `SCRIPT` stage is re-triggered with the `regenerate: true` parameter.
-
-### Redoing the Storyboard
-
-* **Endpoint:** `POST /projects/{id}/chat`
-- **Payload:** `{ "message": "Redo the shots, use a different visual style." }`
-- **Output:** The `STORYBOARD` stage is re-triggered.
-
----
-
-## Scenario 4: Creator Scout Workflow (Brand Sponsorships)
-
-In this scenario, you want to use the `CreatorScoutAgent` to discover relevant brands and collaboration opportunities based on your niche. This runs completely independently of the video-creation pipeline!
-
-### Discovering Brands
-
-* **Endpoint:** `POST /projects/{id}/chat`
-- **Payload:** `{ "message": "Scout brands for a cinematic tech creator on YouTube with 500k views and 5% engagement." }`
-- **Output:** A background job is queued for the `CREATOR_SCOUT` stage. The Chat Router will extract the context you provided and pass it directly to the Scout Agent! The agent searches the web and ranks the best sponsorship deals for your specific niche.
-- **Next Step:** Hit `GET /projects/{id}` and look at the huge `"opportunity_queue"` JSON object at the bottom to see your deals!
+### 3. Approve the Job
+- **Endpoint:** `POST /projects/{project_id}/approve`
+- **Payload:** 
+```json
+{ 
+  "checkpoint_id": "<COPY_CHECKPOINT_ID_FROM_PREVIOUS_STEP>",
+  "comment": "Approved for demo."
+}
+```
 
 ---
 
-## Handled Fallbacks
+## Scenario 4: Fetching Generated Media Assets
+Demonstrate how the API serves binary files directly from the internal filesystem database.
 
-- **No Video Uploaded:** If you run `SYNC` without uploading a video, the worker gracefully falls back to a dummy video. Gemini Vision will detect it's a dummy video (e.g. grass) and intelligently place the audio clips back-to-back using their raw durations instead of lip-syncing!
-- **Rate Limits:** If Gemini throws a `503 UNAVAILABLE` during audio generation, it will gracefully save whatever segments it *did* manage to generate as a "partial" success!
+### 1. Fetch AI Audio Master
+```bash
+curl -X GET "http://127.0.0.1:8000/projects/{project_id}/assets?type=audio_master" --output master.wav
+```
+
+### 2. Fetch Storyboard Video Thumbnail
+```bash
+curl -X GET "http://127.0.0.1:8000/projects/{project_id}/assets?type=video_thumbnail&shot_id=01" --output thumbnail_01.png
+```
+
+### 3. Fetch Culturally Dubbed Track
+```bash
+curl -X GET "http://127.0.0.1:8000/projects/{project_id}/assets?type=dub_track&language=Japanese-Generic" --output dub_ja.wav
+```
+
+---
+
+## Scenario 5: Creator Voice Workflow
+Demonstrate how users can override the default AI Voice pipeline and upload their own media for lip-syncing and dubbing.
+
+### 1. Override Workflow Mode via Chat
+- **Endpoint:** `POST /projects/{project_id}/chat`
+- **Payload:** 
+```json
+{ 
+  "message": "Use my voice instead." 
+}
+```
+
+### 2. Upload Creator Media
+- **Endpoint:** `POST /projects/{project_id}/media`
+- **Payload:** Upload a `.mp4` or `.wav` file as `multipart/form-data`.
+
+### 3. Sync Audio
+- **Endpoint:** `POST /projects/{project_id}/chat`
+- **Payload:** 
+```json
+{ 
+  "message": "Sync audio." 
+}
+```
+
+### 4. Extract Creator Voice
+- **Endpoint:** `POST /projects/{project_id}/chat`
+- **Payload:** 
+```json
+{ 
+  "message": "Extract my voice." 
+}
+```

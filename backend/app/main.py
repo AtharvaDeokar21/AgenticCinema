@@ -15,6 +15,7 @@ from app.orchestration.dag import StageType, WorkflowDAG
 from app.shared.models.project import ProjectState, WorkflowConfig
 from app.worker import run_worker_loop
 from app.api.routes.chat_approval import router as chat_approval_router
+from app.api.routes.assets import router as assets_router
 
 
 # Initialize DAG at module level
@@ -65,6 +66,7 @@ from app.api.routes.media import router as media_router
 
 # Register routers
 app.include_router(chat_approval_router)
+app.include_router(assets_router)
 app.include_router(projects_router)
 app.include_router(media_router)
 

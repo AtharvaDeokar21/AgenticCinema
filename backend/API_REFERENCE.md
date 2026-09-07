@@ -1,98 +1,124 @@
 # Agentic Cinema Backend — API Reference
 
-This document provides a detailed breakdown of all available API routes, their methods, payloads, and responsibilities within the Agentic Cinema pipeline.
+This document serves as the technical contract for the Agentic Cinema backend. It details every single API route registered in the system, its purpose, and its payloads.
 
 ---
 
 ## 1. Projects Router (`/projects`)
 **File:** `app/api/routes/projects.py`
-**Responsibility:** Project lifecycle management, status retrieval, and pipeline overview.
+**Responsibility:** CRUD operations for project workspaces and direct DAG/job inspection.
+
+### `GET /projects`
+- **Description:** List all projects in the database.
+- **Returns:** An array of `ProjectState` objects.
 
 ### `POST /projects`
-* **Description:** Create a new project workspace.
-* **Payload:**
+- **Description:** Create a new project workspace.
+- **Payload:**
   ```json
   {
-    "project_name": "My Epic Short Film",
+    "project_name": "Cyberpunk Coffee Ad",
     "workflow_config": {
       "audio_mode": "AI_VOICE",
-      "target_locales": ["es-ES", "fr-FR"]
+      "target_locales": [],
+      "request_approval_for_yellow": true
     }
   }
   ```
-* **Returns:** The newly created `ProjectState` with `current_stage: CREATED`.
+- **Returns:** The newly created `ProjectState`.
 
 ### `GET /projects/{project_id}`
-* **Description:** Fetch the complete state of a project.
-* **Returns:** A highly detailed JSON payload containing:
-  - `completed_stages` & `ready_stages`
-  - `script` (including all beats and timestamps)
-  - `storyboard` (including all shots and descriptions)
-  - `audio` (metadata for generated/extracted voices)
-  - `sync_report` (the exact mapping of audio to lip movements)
-  - `dub_tracks` (paths to the translated audio)
+- **Description:** Fetch the complete state of a project.
+- **Returns:** The full `ProjectState` object, including all generated scripts, storyboards, audio metadata, and dub tracks.
 
 ### `DELETE /projects/{project_id}`
-* **Description:** Delete a project and completely wipe its directory in `/storage`.
-* **Returns:** `200 OK`
+- **Description:** Delete a project and entirely wipe its directory in the `/storage` and `/tmp` filesystems.
+- **Returns:** `200 OK`
+
+### `POST /projects/{project_id}/stages/{stage_name}`
+- **Description:** Manually force the execution of a specific DAG stage, bypassing the natural language interface.
+- **Returns:** The queued `Job` object.
+
+### `GET /projects/{project_id}/jobs`
+- **Description:** Retrieve all background worker jobs for a specific project.
+- **Returns:** An array of `Job` objects detailing the status (`queued`, `running`, `completed`, `failed`).
+
+### `GET /projects/{project_id}/jobs/{job_id}`
+- **Description:** Fetch the exact status and trace of a specific job.
+- **Returns:** A `Job` object.
+
+### `GET /projects/{project_id}/dag`
+- **Description:** Calculate and return the current available workflow stages based on the internal DAG constraints.
+- **Returns:** List of strings (e.g. `["SCRIPT"]`).
 
 ---
 
-## 2. Media Router (`/projects/{project_id}/media`)
-**File:** `app/api/routes/media.py`
-**Responsibility:** Handling file uploads (videos/audio).
-
-### `POST /projects/{project_id}/media`
-* **Description:** Upload a media asset (e.g., the creator's video performance).
-* **Payload:** `multipart/form-data` with a file attached.
-* **Returns:**
-  ```json
-  {
-    "media_id": "media_abc123",
-    "file_path": "/storage/ee7675.../media_abc123.mp4",
-    "file_size": 1048576,
-    "completed_stages": ["...", "MEDIA_UPLOAD"],
-    "ready_stages": ["SYNC"]
-  }
-  ```
-
----
-
-## 3. Chat Router (`/projects/{project_id}/chat`)
+## 2. Chat & Orchestration Router (`/projects/{project_id}/chat`)
 **File:** `app/api/routes/chat_approval.py` & `app/orchestration/chat_router.py`
-**Responsibility:** The natural language interface for controlling the entire pipeline. The router parses the intent of the message and automatically queues background jobs or updates configurations.
+**Responsibility:** The natural language interface for controlling the pipeline. The router parses the user's intent via LLM/Regex and queues the correct background jobs.
 
 ### `POST /projects/{project_id}/chat`
-* **Description:** Send a natural language message to the orchestration layer.
+- **Description:** Send a natural language message to trigger a workflow.
+- **Payload:** 
+  ```json
+  { "message": "<Any natural language command>" }
+  ```
+- **Key Intents Handled:**
+  - `SCRIPT`: "Write a script about X"
+  - `STORYBOARD`: "Generate storyboard"
+  - `AUDIO_AI`: "Generate audio"
+  - `DUBBING`: "Translate the audio into [Language]" *(Dynamically extracts target language via regex)*
+  - `CREATOR_SCOUT`: "Find brand deals"
+  - `CREATOR_VOICE`: "Use my voice instead"
 
-**Supported Intents & Payloads:**
+### `POST /projects/{project_id}/approve`
+- **Description:** Unblock a task that was flagged `YELLOW` by the internal compliance engine.
+- **Payload:**
+  ```json
+  {
+    "checkpoint_id": "cp_123abc",
+    "comment": "Approved by human."
+  }
+  ```
+- **Returns:** Action confirmation.
 
-1. **Write Script (`SCRIPT` stage)**
-   - **Payload:** `{ "message": "Write a 3-beat script about cyberpunk coffee." }`
-   - **Action:** Triggers the Script Suggestor Agent.
+### `GET /projects/{project_id}/compliance/pending`
+- **Description:** List all blocked tasks awaiting human approval.
+- **Returns:** List of pending `ComplianceCheckpoint` objects.
 
-2. **Generate Storyboard (`STORYBOARD` stage)**
-   - **Payload:** `{ "message": "Generate storyboard for this script." }`
-   - **Action:** Triggers the Storyboard Agent.
-
-3. **Generate AI Audio (`AUDIO_AI` stage)**
-   - **Payload:** `{ "message": "Generate audio for this script." }`
-   - **Action:** Triggers the Audio Agent to generate TTS voices via Gemini.
-
-4. **Sync Audio (`SYNC` stage)**
-   - **Payload:** `{ "message": "Sync audio." }`
-   - **Action:** Triggers the Syncer Agent to analyze the uploaded video and map lip movements to the audio clips.
-
-5. **Generate Dubbing (`DUBBING` stage)**
-   - **Payload:** `{ "message": "Generate dubbing." }`
-   - **Action:** Triggers the Cultural Dubbing Agent.
-
-6. **Switch to Creator Voice**
-   - **Payload:** `{ "message": "Use my voice instead." }`
-   - **Action:** Updates `project.workflow_config.audio_mode` to `CREATOR_VOICE`.
+### `GET /projects/{project_id}/compliance/history`
+- **Description:** Retrieve the audit log of all past human approvals and rejections.
+- **Returns:** List of resolved `ComplianceCheckpoint` objects.
 
 ---
 
-## 4. Background Worker (Internal)
-**File:** `app/worker.py`
-**Responsibility:** Continuously polls the `JobRepository` SQLite database for queued jobs (submitted by the Chat Router). When it picks up a job, it executes the corresponding Python Agent logic (e.g., `SyncerAgent.run()`), saves the result to the `ProjectRepository`, and updates `completed_stages`.
+## 3. Assets Router (`/projects/{project_id}/assets`)
+**File:** `app/api/routes/assets.py`
+**Responsibility:** Securely stream binary media files (images/audio) generated by the AI from the local filesystem to the client.
+
+### `GET /projects/{project_id}/assets`
+- **Description:** Download or stream a generated asset.
+- **Query Parameters:**
+  - `type` (required): `"audio_master"`, `"storyboard"`, `"video_thumbnail"`, or `"dub_track"`
+  - `shot_id` (optional): Required for `storyboard` or `video_thumbnail` (e.g. `"01"`).
+  - `language` (optional): Required for `dub_track` (e.g. `"Japanese-Generic"`).
+- **Returns:** High-performance `FileResponse` serving the exact `.png` or `.wav` binary.
+
+---
+
+## 4. Media Upload Router (`/projects/{project_id}/media`)
+**File:** `app/api/routes/media.py`
+**Responsibility:** Handling raw file uploads from the user (e.g. human voiceover videos) for the `CREATOR_VOICE` mode.
+
+### `POST /projects/{project_id}/media`
+- **Description:** Upload a media asset (MP4 or WAV).
+- **Payload:** `multipart/form-data` with a file attached.
+- **Returns:** Metadata about the uploaded file.
+
+### `GET /projects/{project_id}/media/{media_id}`
+- **Description:** Retrieve metadata about an uploaded file.
+- **Returns:** Media dictionary including `file_path` and `duration`.
+
+### `DELETE /projects/{project_id}/media/{media_id}`
+- **Description:** Remove an uploaded human media file.
+- **Returns:** Action confirmation.
