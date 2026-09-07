@@ -93,7 +93,7 @@ export default function Slate() {
             </g>
 
             <g className="slate-field">
-              <text x="34" y="118">AGENTIC CINEMA</text>
+              <text x="34" y="118">CreatorCrew</text>
               <text x="184" y="118">{stage.dir}</text>
               <text x="324" y="118">A</text>
               <text x="34" y="178">{stage.scene}</text>

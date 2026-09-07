@@ -1,7 +1,7 @@
 export default function Credits() {
   return (
     <footer className="credits">
-      <p className="credits__mark">AGENTIC CINEMA</p>
+      <p className="credits__mark">CreatorCrew</p>
       <p>
         One shared state. Specialised agents. Real tools. Evidence-backed reasoning.
         Deterministic execution.

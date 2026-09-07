@@ -28,7 +28,7 @@ export default function NowShowing() {
               anyone got into this to do, and all of it decides whether the video works.
             </p>
             <p>
-              <strong>Agentic Cinema staffs those jobs.</strong> Seven agents read one shared
+              <strong>CreatorCrew staffs those jobs.</strong> Seven agents read one shared
               project state, do their piece, write it back, and hand off. No agent calls
               another — an orchestrator sequences them, so any one of them can be replaced
               without touching the rest.

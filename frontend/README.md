@@ -1,4 +1,4 @@
-# Agentic Cinema — frontend
+# CreatorCrew — frontend
 
 Next.js 15 (App Router) port of the single-file theatre landing page.
 
@@ -23,7 +23,12 @@ app/
   layout.js         next/font setup, metadata, <html> shell
   page.js           composes the sections
   globals.css       the entire house style
+  api/agent/[agent]/route.js   same-origin proxy to FastAPI
 components/
+  company/AgentStage.jsx       the working booth
+  company/InputDeck.jsx        the per-agent form
+  company/RunConsole.jsx       working steps as the loading state
+  company/OutputDailies.jsx    one renderer per Pydantic model
   CurtainCall.jsx   client — the page-load curtain reveal
   Proscenium.jsx    server — fixed velvet frame, vignette, grain
   StageDirection.jsx client — one rAF loop: parallax, filmstrip, follow spot, nav
@@ -39,6 +44,11 @@ components/
   Crew.jsx          server
   Credits.jsx       server
   props/index.jsx   all stage-prop SVGs, exported individually
+context/
+  ProjectState.jsx  the shared state the agents read and write
+lib/
+  api.js            ENDPOINTS map + runAgent()  <- point this at FastAPI
+  fixtures.js       sample responses for demo mode
 hooks/
   useReducedMotion.js
 data/
@@ -81,3 +91,17 @@ Only four components are client components. Everything else prerenders.
 
 Nothing here is dynamic — `next build` prerenders the single route as static
 content, so any static host works. On Vercel it deploys with no configuration.
+
+
+## Running the agents
+
+Copy `.env.example` to `.env.local` and set `NEXT_PUBLIC_API_BASE` to your
+FastAPI origin. Correct the seven paths in `lib/api.js` to match your routes —
+that is the only file that knows how to reach the backend.
+
+Requests go through `app/api/agent/[agent]/route.js`, a same-origin proxy, so
+you do not have to configure CORS on FastAPI.
+
+Leave `NEXT_PUBLIC_DEMO_FALLBACK=1` for a live demo: if the backend is
+unreachable the booth renders the fixtures in `lib/fixtures.js` and badges the
+output as sample data, rather than failing on stage.
