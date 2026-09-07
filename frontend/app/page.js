@@ -10,6 +10,7 @@ import Slate from "@/components/Slate";
 import Reel from "@/components/Reel";
 import HouseRules from "@/components/HouseRules";
 import Crew from "@/components/Crew";
+import TryAgent from "@/components/TryAgent";
 import Credits from "@/components/Credits";
 
 export default function Page() {
@@ -29,6 +30,7 @@ export default function Page() {
         <Reel />
         <HouseRules />
         <Crew />
+        <TryAgent />
       </main>
 
       <Credits />

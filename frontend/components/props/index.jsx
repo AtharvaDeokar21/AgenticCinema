@@ -180,6 +180,38 @@ export function TicketStub() {
   );
 }
 
+
+export function Clapper({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 120 100" aria-hidden="true">
+      <g stroke="#C8992F" strokeWidth="3" fill="none" strokeLinejoin="round">
+        <rect x="10" y="30" width="100" height="58" rx="4" fill="#1B2422" />
+        <path d="M14 8h96l-6 20H8Z" fill="#151517" />
+        <g fill="#EDE6D6" stroke="none">
+          <path d="M24 9h16l-8 18H16z" />
+          <path d="M52 9h16l-8 18H44z" />
+          <path d="M80 9h16l-8 18H72z" />
+        </g>
+        <path d="M22 48h76M22 64h50" strokeWidth="2.4" opacity=".45" />
+      </g>
+    </svg>
+  );
+}
+
+export function Projector({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 180 130" aria-hidden="true">
+      <g stroke="#C8992F" strokeWidth="2.6" fill="none" strokeLinejoin="round">
+        <circle cx="52" cy="34" r="22" />
+        <circle cx="104" cy="30" r="16" />
+        <path d="M28 58h104v34H28Z" fill="#2A1D22" />
+        <path d="M132 66l30-12v34l-30-12Z" fill="#4A0A10" />
+        <path d="M46 92v18M118 92v18M34 110h96" />
+      </g>
+    </svg>
+  );
+}
+
 /* Looked up by the `prop` key on each agent record. */
 export const propsByName = {
   megaphone: Megaphone,

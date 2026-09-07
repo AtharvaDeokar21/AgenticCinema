@@ -23,11 +23,6 @@ export default function Hero() {
         <h1 className="marquee-title">
           <span>CreatorCrew</span>
         </h1>
-        {/* <p className="logline">
-          Seven agents share one script and one shared state. They find the deal, time the
-          words, plan the shot, sync the audio, dub it for your actual audience, and clear
-          the rights before any of it costs a reshoot.
-        </p> */}
       </div>
 
       <div className="plane plane--floor" data-par data-speed="-0.14" aria-hidden="true" />
@@ -36,7 +31,6 @@ export default function Hero() {
         <DirectorsChair className="prop-chair" />
         <FilmReel className="prop-reel" />
       </div>
-
     </header>
   );
 }

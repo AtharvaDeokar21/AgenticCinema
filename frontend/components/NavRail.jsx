@@ -5,6 +5,7 @@ const sections = [
   ["reel", "The reel"],
   ["house", "House rules"],
   ["crew", "Crew"],
+  ["try", "Try our agent"],
 ];
 
 /* Plain anchors, not next/link: these are in-page jumps on a single route.
