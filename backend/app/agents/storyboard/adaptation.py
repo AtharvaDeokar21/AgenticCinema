@@ -387,20 +387,14 @@ ON-SCREEN TEXT:
         }
 
         missing = expected_ids - actual_ids
-
-        if missing:
-            raise ValueError(
-                "Adapted storyboard is missing shots: "
-                + ", ".join(sorted(missing))
-            )
-
         unknown = actual_ids - expected_ids
 
-        if unknown:
-            raise ValueError(
-                "Adapted storyboard contains unknown shots: "
-                + ", ".join(sorted(unknown))
+        if missing or unknown:
+            print(
+                f"[Storyboard Adaptation] Warning: Adapted storyboard has missing/unknown shots. "
+                f"Falling back to original storyboard to prevent pipeline crash."
             )
+            response.storyboard = original_storyboard
 
         # Preserve the original storyboard object if Gemini
         # somehow returns an empty adaptation.

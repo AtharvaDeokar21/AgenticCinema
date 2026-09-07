@@ -16,6 +16,9 @@ class ChatIntent(str, Enum):
     CHECK_COMPLIANCE = "check_compliance"
     QUERY_STATUS = "query_status"
     APPROVE_COMPLIANCE = "approve_compliance"
+    GENERATE_AUDIO = "generate_audio"
+    GENERATE_SYNC = "generate_sync"
+    GENERATE_DUBBING = "generate_dubbing"
     CLARIFY = "clarify"
 
 
@@ -33,15 +36,32 @@ class ChatIntentRouter:
             r"(?:make|more|less)\s+(?:dramatic|funny|engaging)",
         ],
         ChatIntent.REGENERATE_SCRIPT: [
-            r"regenerate.*script",
-            r"redo.*script",
-            r"rewrite.*script",
-            r"start.*over",
+            r"(?:generate|regenerate)\s+script",
+            r"(?:write|rewrite)\s+script",
+            r"(?:create|make)\s+script",
+            r"redo\s+script",
+            r"start\s+over",
         ],
         ChatIntent.REGENERATE_STORYBOARD: [
-            r"regenerate.*storyboard",
-            r"redo.*shots",
-            r"different.*visual",
+            r"(?:generate|regenerate)\s+storyboard",
+            r"(?:create|make)\s+storyboard",
+            r"redo\s+shots",
+            r"different\s+visual",
+        ],
+        ChatIntent.GENERATE_AUDIO: [
+            r"(?:generate|create|make)\s+audio",
+            r"(?:generate|create|make)\s+voice",
+            r"do\s+audio",
+        ],
+        ChatIntent.GENERATE_SYNC: [
+            r"(?:generate|create|make|do)\s+sync",
+            r"extract\s+audio",
+            r"sync\s+audio",
+        ],
+        ChatIntent.GENERATE_DUBBING: [
+            r"(?:generate|create|make)\s+dub(?:bing|s)?",
+            r"(?:generate|create|make)\s+translation",
+            r"translate",
         ],
         ChatIntent.CHANGE_AUDIO_MODE: [
             r"(?:use|switch|change).*(?:creator|my).*voice",
@@ -146,6 +166,18 @@ class ChatIntentRouter:
 
         elif intent == ChatIntent.REGENERATE_STORYBOARD:
             action["stage"] = "STORYBOARD"
+            action["params"] = {}
+
+        elif intent == ChatIntent.GENERATE_AUDIO:
+            action["stage"] = "AUDIO_AI"
+            action["params"] = {}
+
+        elif intent == ChatIntent.GENERATE_SYNC:
+            action["stage"] = "SYNC"
+            action["params"] = {}
+
+        elif intent == ChatIntent.GENERATE_DUBBING:
+            action["stage"] = "DUBBING"
             action["params"] = {}
 
         elif intent == ChatIntent.CHANGE_AUDIO_MODE:

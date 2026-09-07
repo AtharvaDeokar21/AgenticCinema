@@ -273,8 +273,22 @@ class AudioAgent(BaseAgent):
             final_audio_path,
         )
 
+        from app.shared.models.audio import AudioSegment
+
         audio_master = self._audio_master_from_file(final_audio_path)
         audio_master.cleaned = False
+        
+        # Populate the AudioMaster segments
+        for seg in generated_segments:
+            audio_master.segments.append(
+                AudioSegment(
+                    segment_id=seg.beat_id,
+                    start_time=seg.start_time,
+                    end_time=seg.end_time,
+                    transcript="" # Could be populated with beat.text if needed
+                )
+            )
+            
         request.project_state.audio_master = audio_master
 
         if resource_limit_reached:

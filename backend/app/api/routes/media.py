@@ -8,9 +8,9 @@ import os
 import uuid
 from pathlib import Path
 
-from ..persistence.repository import ProjectRepository
-from ..shared.models.media import MediaManifest
-from ..shared.models.project import ProjectState
+from app.persistence.repository import ProjectRepository
+from app.shared.models.media import MediaManifest
+from app.shared.models.project import ProjectState
 
 router = APIRouter(prefix="/projects", tags=["media"])
 
@@ -41,13 +41,18 @@ async def upload_media(project_id: str, file: UploadFile = File(...)):
         with open(file_path, "wb") as f:
             f.write(content)
 
+        from app.shared.models.media import MediaAsset
+
+        asset = MediaAsset(
+            asset_id=media_id,
+            file_name=file.filename,
+            file_path=str(file_path),
+            asset_type="video" if file_ext.lower() in [".mp4", ".mov", ".avi"] else "audio",
+        )
+
         # Update project with media manifest
         project.media_manifest = MediaManifest(
-            media_id=media_id,
-            file_path=str(file_path),
-            file_size=len(content),
-            file_type=file.content_type or "video/mp4",
-            duration=None,  # Would need video analysis to get duration
+            assets=[asset]
         )
 
         # Mark MEDIA_UPLOAD as completed and SYNC as ready

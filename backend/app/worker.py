@@ -45,7 +45,7 @@ async def _run_compliance_check(project_id: str, stage: str, project_data: dict)
             "project_id": project_id,
             "stage": checkpoint.stage,
             "status": checkpoint.status.value.lower(),   # "green" | "yellow" | "red"
-            "report": checkpoint.report.model_dump() if checkpoint.report else None,
+            "report": checkpoint.report.model_dump(mode='json') if checkpoint.report else None,
             "decisions": [],
             "created_at": checkpoint.created_at,
             "approved_at": None,
@@ -229,17 +229,23 @@ async def _execute_job(job: dict) -> None:
 
             video_path_to_use = _DUMMY_VIDEO_PATH
             if project.media_manifest and project.media_manifest.assets:
+                # First try to find a video
                 videos = [a for a in project.media_manifest.assets if a.asset_type.lower() == "video"]
                 if videos:
                     video_path_to_use = videos[0].file_path
+                else:
+                    # If they uploaded an audio file (or something else), we still have no video
+                    logger.warning("[Worker] No video found in media manifest, falling back to dummy video.")
 
             audio_clips = []
             for i, beat in enumerate(project.script.beats):
                 if i < len(project.audio_master.segments):
                     segment = project.audio_master.segments[i]
+                    # If AI voice was generated, it produces a single master audio track
+                    # For creator voice, we might use the master track or individual clips
                     audio_clips.append(AudioClip(
                         beat_id=beat.beat_id,
-                        file_path=project.audio_master.file_path or _DUMMY_VIDEO_PATH,
+                        file_path=project.audio_master.file_path,
                         duration=(segment.end_time - segment.start_time)
                     ))
 

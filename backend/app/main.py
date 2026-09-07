@@ -61,10 +61,12 @@ app.add_middleware(
 
 
 from app.api.routes.projects import router as projects_router
+from app.api.routes.media import router as media_router
 
 # Register routers
 app.include_router(chat_approval_router)
 app.include_router(projects_router)
+app.include_router(media_router)
 
 @app.get("/health")
 async def health_check():
