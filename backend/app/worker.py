@@ -267,9 +267,18 @@ async def _execute_job(job: dict) -> None:
                 raise ValueError("Audio Master required for Dubbing")
 
             target_locales = []
-            if project.workflow_config and project.workflow_config.target_locales:
+            
+            # 1. Check if a dynamic language was passed in from the chat intent
+            dynamic_lang = job.get("action", {}).get("params", {}).get("target_language")
+            if dynamic_lang:
+                target_locales.append(TargetLocale(language=dynamic_lang, geography="Generic"))
+            
+            # 2. Otherwise fallback to workflow config
+            if not target_locales and project.workflow_config and project.workflow_config.target_locales:
                 for loc in project.workflow_config.target_locales:
                     target_locales.append(TargetLocale(language=loc, geography=loc))
+            
+            # 3. Ultimate fallback
             if not target_locales:
                 target_locales.append(TargetLocale(language="hi", geography="IN"))
 
@@ -278,7 +287,7 @@ async def _execute_job(job: dict) -> None:
                 project_id=project_id,
                 audio_master=project.audio_master,
                 target_locales=target_locales,
-                generate_audio=False
+                generate_audio=True
             )
             result = await agent.run(request)
             project.dub_tracks = result.tracks

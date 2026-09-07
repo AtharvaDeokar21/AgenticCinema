@@ -81,57 +81,16 @@ async def get_project(project_id: str):
     completed = set(project.completed_stages)
     ready = dag.get_ready_stages(completed)
 
-    script_data = None
-    if project.script:
-        script_data = {
-            "title": project.script.title,
-            "beats": [
-                {
-                    "beat_id": b.beat_id,
-                    "text": b.text,
-                    "start_time": b.start_time,
-                    "end_time": b.end_time,
-                    "audio_intent": b.audio_intent,
-                }
-                for b in (project.script.beats or [])
-            ],
-        }
-
-    storyboard_data = None
-    if project.storyboard:
-        storyboard_data = {
-            "visual_style": project.storyboard.visual_style,
-            "shots": [
-                {
-                    "shot_id": s.shot_id,
-                    "description": s.visual_description,
-                    "duration": s.end_time - s.start_time,
-                }
-                for s in (project.storyboard.shots or [])
-            ],
-        }
-
-    audio_data = None
-    if project.audio_master:
-        audio_data = {
-            "duration": project.audio_master.duration,
-            "sample_rate": project.audio_master.sample_rate,
-            "segments": len(project.audio_master.segments or []),
-        }
-
     return {
         "project_id": project.project_id,
         "project_name": project.project_name,
         "completed_stages": project.completed_stages,
         "ready_stages": [s.value for s in ready],
         "blocked_stages": project.blocked_stages,
-        "workflow_config": {
-            "audio_mode": project.workflow_config.audio_mode,
-            "target_locales": project.workflow_config.target_locales,
-        },
-        "script": script_data,
-        "storyboard": storyboard_data,
-        "audio": audio_data,
+        "workflow_config": project.workflow_config.model_dump(mode="json") if project.workflow_config else None,
+        "script": project.script.model_dump(mode="json") if project.script else None,
+        "storyboard": project.storyboard.model_dump(mode="json") if project.storyboard else None,
+        "audio": project.audio_master.model_dump(mode="json") if project.audio_master else None,
         "sync_report": project.sync_report.model_dump(mode="json") if project.sync_report else None,
         "dub_tracks": [dt.model_dump(mode="json") for dt in project.dub_tracks] if project.dub_tracks else [],
         "opportunity_queue": project.opportunity_queue.model_dump(mode="json") if project.opportunity_queue else None,

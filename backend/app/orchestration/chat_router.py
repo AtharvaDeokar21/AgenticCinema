@@ -185,6 +185,14 @@ class ChatIntentRouter:
         elif intent == ChatIntent.GENERATE_DUBBING:
             action["stage"] = "DUBBING"
             action["params"] = {}
+            
+            # Extract language (e.g. "translate to spanish", "dub in french")
+            lang_match = re.search(r"(?:to|in|into)\s+([a-zA-Z]+)", message, re.IGNORECASE)
+            if lang_match:
+                # ignore generic words
+                word = lang_match.group(1).lower()
+                if word not in ["the", "another", "my", "a", "this", "that", "it"]:
+                    action["params"]["target_language"] = word.capitalize()
 
         elif intent == ChatIntent.SCOUT_BRANDS:
             action["stage"] = "CREATOR_SCOUT"
