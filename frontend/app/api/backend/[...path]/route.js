@@ -29,9 +29,10 @@ const STRIP_REQUEST = new Set([
 ]);
 
 // Headers worth passing back so <img>, <audio> and download links behave.
+// NOTE: "content-length" and "content-encoding" are intentionally excluded
+// because fetch() decompresses upstream bodies, which causes mismatched Content-Length.
 const KEEP_RESPONSE = [
   "content-type",
-  "content-length",
   "content-disposition",
   "accept-ranges",
   "content-range",
