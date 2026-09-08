@@ -97,3 +97,4 @@ Thumbs.db
 
 # image generation outputs
 storage/
+*.db
