@@ -159,12 +159,21 @@ function describe(before, after, projectId, stage) {
 
       if (gained.some((s) => s.includes("STORYBOARD"))) {
     const shots = shotsOf(after);
+    const fullText = shots.map((s) => `${s.id}. ${s.meta}\n${s.caption}\n"${s.line}"`).join("\n\n");
+    const dataUri = "data:text/plain;charset=utf-8," + encodeURIComponent(fullText);
+
     return reply({
       agent: "Storyboard",
-      text: shots.map((s) => `${s.id}. ${s.meta}\n${s.caption}\n"${s.line}"`).join("\n\n"),
+      text: fullText,
       images: shots.filter((s) => s.hasImage).map((shot) => ({
         url: assetUrl(projectId, { type: "storyboard", shotId: shot.id, bust }),
+        caption: shot.caption,
       })),
+      thumbnails: ["01", "02", "03"].map(id => ({
+        url: assetUrl(projectId, { type: "video_thumbnail", shotId: id, bust }),
+        caption: `Video Thumbnail ${id}`,
+      })),
+      files: [{ name: `Storyboard_Full.txt`, url: dataUri }]
     });
   }
 

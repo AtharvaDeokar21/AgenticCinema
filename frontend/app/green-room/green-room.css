@@ -170,11 +170,47 @@
 }
 .stills img{display:block;width:100%}
 .stills span{display:block;margin-top:7px;font-size:10.5px;color:var(--lime-dim);line-height:1.5}
+.download-actions { display: flex; gap: 8px; margin-top: 8px; }
+.download-actions a {
+  padding: 4px 8px; background: var(--brass); color: var(--black); text-decoration: none;
+  font-size: 9px; font-weight: bold; text-transform: uppercase; border-radius: 2px;
+  letter-spacing: .05em; transition: opacity .2s;
+}
+.download-actions a:hover { opacity: 0.8; }
 
 .tracks{list-style:none;margin:14px 0 0;padding:0;display:flex;flex-direction:column;gap:9px}
 .tracks li{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .tracks span{font-size:10.5px;letter-spacing:.12em;color:var(--brass);min-width:90px}
-.tracks audio{flex:1 1 240px;max-width:100%}
+
+/* Custom Audio Player */
+.custom-audio {
+  display: flex; align-items: center; gap: 12px; background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(200, 153, 47, 0.3); padding: 8px 12px; border-radius: 4px;
+  flex: 1 1 240px; max-width: 400px;
+}
+.custom-audio__play {
+  background: none; border: none; color: var(--brass); cursor: pointer;
+  display: flex; align-items: center; justify-content: center; padding: 0;
+  transition: opacity 0.2s;
+}
+.custom-audio__play:hover { opacity: 0.8; }
+.custom-audio__time { font-size: 10px; color: var(--lime-dim); font-variant-numeric: tabular-nums; }
+.custom-audio__slider {
+  flex: 1; -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer;
+}
+.custom-audio__slider::-webkit-slider-runnable-track {
+  height: 4px; background: rgba(246, 231, 198, 0.2); border-radius: 2px;
+}
+.custom-audio__slider::-webkit-slider-thumb {
+  -webkit-appearance: none; height: 12px; width: 12px; background: var(--brass);
+  border-radius: 50%; margin-top: -4px;
+}
+.custom-audio__download {
+  color: var(--brass); display: flex; align-items: center; justify-content: center;
+  transition: opacity 0.2s; text-decoration: none;
+}
+.custom-audio__download:hover { opacity: 0.8; }
+
 
 /* ---------- the composer, shaped like a clapperboard ---------- */
 .room__desk{
