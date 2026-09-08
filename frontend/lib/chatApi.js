@@ -128,6 +128,14 @@ export async function sendToCrew({ project_id, message, files = [], onStatus }) 
     });
   }
 
+  // If the job was blocked (e.g. RED compliance) but there's no pending checkpoint to approve
+  if (job && job.status === "blocked") {
+    return reply({
+      agent: "Compliance",
+      text: "Pipeline blocked by RED compliance flag. The action could not be completed.",
+    });
+  }
+
   const after = await getProject(project_id);
   return describe(before, after, project_id, job?.stage ?? stage);
 }
@@ -189,7 +197,7 @@ function describe(before, after, projectId, stage) {
     const dubs = dubsOf(after);
     return reply({
       agent: "Cultural dub",
-      text: dubs.length ? `Dubbed into ${dubs.map((d) => d.label).join(", ")}.` : "Dub track is ready.",
+      text: dubs.length ? `Dubbed into ${dubs.map((d) => d.label).join(", ")}.` : "Dubbing failed. Check the server logs for quota or configuration errors.",
       audio: dubs.map((d) => ({
         label: d.label,
         url: assetUrl(projectId, { type: "dub_track", language: d.key, bust }),
