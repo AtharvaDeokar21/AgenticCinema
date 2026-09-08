@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 POLL_INTERVAL = 3  # seconds between DB polls
 
-_DUMMY_VIDEO_PATH = str(Path(__file__).resolve().parent.parent / "tmp" / "dummy.mp4")
+
 
 # Single shared compliance decorator (stateless between jobs — state is in the DB)
 _compliance_agent = ComplianceAgent()
@@ -189,7 +189,8 @@ async def _execute_job(job: dict) -> None:
                 for shot in shot_plan.shots:
                     if shot.shot_id in asset_map:
                         shot.generated_image = asset_map[shot.shot_id]
-                        
+            if assets and assets.errors:
+                logger.error("[Storyboard] Asset generation errors: %s", assets.errors)           
             project.storyboard = shot_plan
             compliance_data = {"storyboard": shot_plan}
 
@@ -201,7 +202,8 @@ async def _execute_job(job: dict) -> None:
                 raise ValueError("Script required for audio generation")
 
             audio_mode = AudioInputMode.AI_VOICE
-            video_path_to_use = _DUMMY_VIDEO_PATH
+            video_path_to_use = None
+            output_dir = str(Path(__file__).resolve().parent.parent / "storage" / "audio" / project_id)
 
             if stage == StageType.AUDIO_CREATOR:
                 audio_mode = AudioInputMode.CREATOR_VOICE
@@ -209,10 +211,13 @@ async def _execute_job(job: dict) -> None:
                     videos = [a for a in project.media_manifest.assets if a.asset_type.lower() == "video"]
                     if videos:
                         video_path_to_use = videos[0].file_path
+                if not video_path_to_use:
+                    raise ValueError("Creator voice mode requires an uploaded video. Upload media first.")
 
             agent = AudioAgent()
             request = AudioRequest(
                 video_path=video_path_to_use,
+                output_dir=output_dir,
                 mode=audio_mode,
                 project_state=project,
             )
@@ -290,6 +295,8 @@ async def _execute_job(job: dict) -> None:
                 generate_audio=True
             )
             result = await agent.run(request)
+            if getattr(result, "degraded_reasons", None):
+                logger.error("[Dubbing] degraded: %s", result.degraded_reasons)
             project.dub_tracks = result.tracks
             compliance_data = {"dubbing": result}
 
@@ -304,6 +311,8 @@ async def _execute_job(job: dict) -> None:
                 creator_name="Dynamic Creator",
                 platforms=["YouTube", "TikTok"],
                 niche=context or "Cinematic storytelling and filmmaking",
+                categories_of_interest=["cameras", "camera lenses", "audio gear", "video editing software"],
+                target_geography="India",
                 audience_summary="Broad demographic" if not context else context,
                 median_views=500000,
                 engagement_rate=0.05

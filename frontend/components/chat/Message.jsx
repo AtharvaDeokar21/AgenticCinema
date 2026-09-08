@@ -1,5 +1,5 @@
 "use client";
-
+//path = frontend/components/chat/Message.jsx
 import { Clapper, DirectorsChair } from "@/components/props";
 
 /* Laid out as screenplay dialogue rather than chat bubbles: a cue line in
@@ -66,7 +66,8 @@ export default function Message({ message }) {
             {message.images.map((image, i) => (
               <li key={i}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={image.url || image} alt={image.caption || "Generated still"} />
+                <img src={image.url || image} alt={image.caption || "Generated still"}
+                onError={(e) => { e.currentTarget.style.display = "none"; }} />
                 {image.caption && <span>{image.caption}</span>}
               </li>
             ))}

@@ -24,12 +24,15 @@ class AudioRequest(BaseModel):
     """
 
     mode: AudioInputMode
-    video_path: str
+    video_path: Optional[str] = None
+    output_dir: Optional[str] = None
     project_state: ProjectState
 
     @field_validator("video_path")
     @classmethod
-    def validate_video_path(cls, value: str) -> str:
+    def validate_video_path(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
         path = Path(value)
         if not path.is_absolute():
             raise ValueError("video_path must be an absolute path to the staged video")
@@ -83,7 +86,7 @@ class AudioResult(BaseModel):
 
     mode: AudioInputMode
     status: str
-    source_video_path: str
+    source_video_path: Optional[str] = None
     extracted_audio_path: Optional[str] = None
     generated_audio_path: Optional[str] = None
     cleaned_audio_path: Optional[str] = None

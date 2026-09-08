@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Clapper } from "@/components/props";
-
+//path = frontend/components/chat/Composer.jsx
 /* The composer is shaped like a clapperboard: striped stick along the top,
    slate body underneath. Attachments and a voice note sit on the stick. */
 const ACCEPT = {

@@ -1,12 +1,11 @@
 "use client";
-
+//path = frontend/components/chat/ChatRoom.jsx
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Backdrop from "@/components/chat/Backdrop";
 import Composer from "@/components/chat/Composer";
 import Message from "@/components/chat/Message";
-import { sendToCrew } from "@/lib/chatApi";
-import { TicketStub } from "@/components/props";
+import { ensureProject, sendToCrew } from "@/lib/chatApi";
 
 const OPENERS = [
   "Write me a 60-second explainer on UPI credit lines",
@@ -23,11 +22,24 @@ export default function ChatRoom() {
   const [busy, setBusy] = useState(false);
   const [drift, setDrift] = useState(0);
   const transcriptRef = useRef(null);
-  const projectId = useRef(`proj_${Math.random().toString(36).slice(2, 9)}`);
+  const [projectId, setProjectId] = useState(null);
+  const [status, setStatus] = useState("");
   const objectUrls = useRef([]);
+  const bootstrapped = useRef(false);    
 
   /* Object URLs are for previewing what the creator attached; release them
      when the page goes away so the blobs are not held forever. */
+
+    useEffect(() => {
+    if (bootstrapped.current) return;
+    bootstrapped.current = true;
+    ensureProject("Agentic Cinema demo")
+      .then(setProjectId)
+      .catch((e) =>
+        setMessages([{ id: nextId(), role: "crew", text: `Backend unreachable — ${e.message}` }])
+      );
+  }, []);
+
   useEffect(() => {
     const urls = objectUrls.current;
     return () => urls.forEach((url) => URL.revokeObjectURL(url));
@@ -61,16 +73,11 @@ export default function ChatRoom() {
       setBusy(true);
 
       try {
-        const history = messages
-          .filter((m) => !m.pending && !m.error)
-          .slice(-10)
-          .map((m) => ({ role: m.role, text: m.text }));
-
         const reply = await sendToCrew({
-          project_id: projectId.current,
+          project_id: projectId,
           message: text,
-          history,
           files,
+          onStatus: setStatus,
         });
 
         setMessages((prev) =>
@@ -78,11 +85,20 @@ export default function ChatRoom() {
             m.id === placeholder.id ? { ...m, ...reply, pending: false } : m
           )
         );
-      } catch (error) {
+            } catch (error) {
+        let detail = error.message;
+        try {
+          const start = detail.indexOf("{");
+          if (start !== -1) {
+            const inner = JSON.parse(JSON.parse(detail.slice(start)));
+            detail = `${inner.type}: ${inner.message}`;
+          }
+        } catch {}
+
         setMessages((prev) =>
           prev.map((m) =>
             m.id === placeholder.id
-              ? { ...m, pending: false, error: error.message }
+              ? { ...m, pending: false, error: detail }
               : m
           )
         );
@@ -90,7 +106,7 @@ export default function ChatRoom() {
         setBusy(false);
       }
     },
-    [messages]
+    [projectId]
   );
 
   return (
@@ -102,7 +118,7 @@ export default function ChatRoom() {
           <span aria-hidden="true">&#8592;</span> Back to the theatre
         </Link>
         <p className="room__title">The Green Room</p>
-        <span className="room__file">{projectId.current}</span>
+        <span className="room__file">{projectId ?? "creating workspace…"}</span>
       </header>
 
       <div className="room__transcript" ref={transcriptRef} onScroll={onScroll}>
@@ -135,7 +151,7 @@ export default function ChatRoom() {
 
       <div className="room__desk">
         <div className="room__column">
-          <Composer onSend={send} busy={busy} />
+          <Composer onSend={send} busy={busy || !projectId} />
         </div>
       </div>
     </div>

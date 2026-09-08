@@ -1,9 +1,9 @@
 """Audio Agent: creator-voice and AI-voice entry paths."""
 
 import json
+import os
 from pathlib import Path
 from typing import Callable, Optional, TYPE_CHECKING
-from urllib import request
 
 from app.agents.base import BaseAgent
 from app.agents.audio.prompts import build_segment_analysis_prompt, build_tts_prompt
@@ -22,10 +22,11 @@ from app.shared.tools.audio.tts import (
     assemble_timed_wav,
     get_wav_duration,
 )
+
 if TYPE_CHECKING:
     from app.shared.tools.gemini.client import GeminiClient
+
 from app.shared.tools.media.ffmpeg import extract_audio
-import os
 
 
 class AudioAgent(BaseAgent):
@@ -54,14 +55,23 @@ class AudioAgent(BaseAgent):
             raise TypeError("AudioAgent.run expects an AudioRequest")
 
         request = input_data
-        video_path = Path(request.video_path)
-        if not video_path.exists():
-            raise FileNotFoundError(f"Audio source video not found: {video_path}")
-        if not video_path.is_file():
-            raise ValueError(f"Audio source path is not a file: {video_path}")
 
+        # Only the creator-voice path reads a media file. AI voice synthesises
+        # from the script, so it must not require a video to exist.
         if request.mode is AudioInputMode.CREATOR_VOICE:
+            if not request.video_path:
+                raise ValueError(
+                    "Creator voice mode requires an uploaded video or audio file"
+                )
+
+            source_path = Path(request.video_path)
+            if not source_path.exists():
+                raise FileNotFoundError(f"Audio source not found: {source_path}")
+            if not source_path.is_file():
+                raise ValueError(f"Audio source path is not a file: {source_path}")
+
             return await self._run_creator_voice(request)
+
         if request.mode is AudioInputMode.AI_VOICE:
             return await self._run_ai_voice(request)
 
@@ -141,7 +151,7 @@ class AudioAgent(BaseAgent):
         )
 
         return any(marker in message for marker in resource_limit_markers)
-    
+
     async def _run_ai_voice(self, request: AudioRequest) -> AudioResult:
         """Generate speech beat-by-beat and place it on the script timeline."""
         script = request.project_state.script
@@ -166,8 +176,8 @@ class AudioAgent(BaseAgent):
                     f"Script beat {beat.beat_id} has an invalid timestamp range"
                 )
 
-            beat_path = self._derived_path(
-                request.video_path,
+            beat_path = self._output_path(
+                request,
                 f"tts_{beat.beat_id}.wav",
             )
 
@@ -263,8 +273,8 @@ class AudioAgent(BaseAgent):
                 "could be generated."
             )
 
-        final_audio_path = self._derived_path(
-            request.video_path,
+        final_audio_path = self._output_path(
+            request,
             "generated.wav",
         )
 
@@ -277,7 +287,7 @@ class AudioAgent(BaseAgent):
 
         audio_master = self._audio_master_from_file(final_audio_path)
         audio_master.cleaned = False
-        
+
         # Populate the AudioMaster segments
         for seg in generated_segments:
             audio_master.segments.append(
@@ -285,10 +295,10 @@ class AudioAgent(BaseAgent):
                     segment_id=seg.beat_id,
                     start_time=seg.start_time,
                     end_time=seg.end_time,
-                    transcript="" # Could be populated with beat.text if needed
+                    transcript="",  # Could be populated with beat.text if needed
                 )
             )
-            
+
         request.project_state.audio_master = audio_master
 
         if resource_limit_reached:
@@ -309,7 +319,7 @@ class AudioAgent(BaseAgent):
             project_state=request.project_state,
             error=generation_error,
         )
-        
+
     @staticmethod
     def _pacing_tag(duration: float, slot_duration: float) -> str:
         ratio = duration / slot_duration
@@ -325,6 +335,21 @@ class AudioAgent(BaseAgent):
 
             self.gemini = GeminiClient()
         return self.gemini
+
+    def _output_path(self, request: AudioRequest, suffix: str) -> str:
+        """Where to write a generated audio file.
+
+        Creator voice writes next to the uploaded media, which keeps related
+        files together. AI voice has no source media, so it writes into the
+        project's own audio directory instead.
+        """
+
+        if request.video_path:
+            return self._derived_path(request.video_path, suffix)
+
+        base = Path(request.output_dir or "storage/audio").resolve()
+        base.mkdir(parents=True, exist_ok=True)
+        return str(base / suffix)
 
     @staticmethod
     def _derived_path(video_path: str, suffix: str) -> str:

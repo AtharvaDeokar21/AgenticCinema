@@ -165,3 +165,33 @@ def extract_frame_at(
             "2",
         ],
     )
+
+
+def normalise_to_wav(
+    input_path: str,
+    output_path: str,
+    sample_rate: int = 16000,
+    channels: int = 1,
+) -> str:
+    """Decode any container ffmpeg understands into PCM WAV.
+
+    Used by the media upload route so browser recordings (webm/opus in
+    Chrome, mp4/aac in Safari) become a format the audio agents accept.
+    ``-vn`` means the same call also strips audio out of an uploaded mp4.
+    """
+
+    dst = Path(output_path).resolve()
+    dst.parent.mkdir(parents=True, exist_ok=True)
+
+    run_ffmpeg(
+        input_path=input_path,
+        output_path=str(dst),
+        args=[
+            "-vn",
+            "-ac", str(channels),
+            "-ar", str(sample_rate),
+            "-acodec", "pcm_s16le",
+            "-loglevel", "error",
+        ],
+    )
+    return str(dst)
