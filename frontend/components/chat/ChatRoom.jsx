@@ -14,8 +14,7 @@ const OPENERS = [
   "Check this script for rights problems",
 ];
 
-let seq = 0;
-const nextId = () => `m${++seq}`;
+const nextId = () => typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `m${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
 export default function ChatRoom() {
   const [messages, setMessages] = useState([]);

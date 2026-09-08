@@ -35,3 +35,5 @@ class SyncReport(BaseModel):
     fallback_used: bool = False
 
     notes: List[str] = Field(default_factory=list)
+
+    editor_timeline_text: Optional[str] = None
