@@ -232,7 +232,7 @@ async def _execute_job(job: dict) -> None:
             if not project.script or not project.audio_master:
                 raise ValueError("Script and Audio Master required for Syncer")
 
-            video_path_to_use = _DUMMY_VIDEO_PATH
+            video_path_to_use = str(Path(__file__).resolve().parent.parent / "tmp" / "dummy.mp4")
             if project.media_manifest and project.media_manifest.assets:
                 # First try to find a video
                 videos = [a for a in project.media_manifest.assets if a.asset_type.lower() == "video"]
