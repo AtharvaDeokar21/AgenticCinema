@@ -66,7 +66,15 @@ def get_db_context():
     """Context manager for DB connections ensuring commit/close across SQLite & Postgres."""
     pg_url = _get_database_url()
     if pg_url and HAS_PSYCOPG:
-        conn = psycopg.connect(pg_url, row_factory=dict_row)
+        try:
+            conn = psycopg.connect(pg_url, row_factory=dict_row)
+        except Exception as e:
+            err_msg = str(e)
+            print(f"❌ PostgreSQL Connection Error: {err_msg}")
+            if "Network is unreachable" in err_msg or "2406:" in err_msg:
+                print("💡 TIP: If using Supabase, make sure to use the 'Connection Pooler' URL (port 6543/5432) which supports IPv4 on Render.")
+                print("💡 TIP: If using Render PostgreSQL, use the 'Internal Database URL' instead of the External Database URL.")
+            raise
         wrapper = DBConnection(conn, is_pg=True)
         try:
             yield wrapper
