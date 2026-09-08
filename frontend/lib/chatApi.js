@@ -146,7 +146,15 @@ function describe(before, after, projectId, stage) {
   const bust = Date.now(); // defeats the browser cache after a regenerate
 
   if (gained.includes("SCRIPT")) {
-    return reply({ agent: "Script", text: scriptText(after) });
+    const fullDetails = scriptTextFull(after);
+    const dataUri = "data:text/plain;charset=utf-8," + encodeURIComponent(fullDetails);
+    
+    return reply({ 
+      agent: "Script", 
+      text: scriptText(after),
+      sources: parseSources(after.script?.evidence),
+      files: [{ name: `${(after.script?.title || "Script").replace(/[^a-zA-Z0-9]/g, "_")}_Full.txt`, url: dataUri }]
+    });
   }
 
       if (gained.some((s) => s.includes("STORYBOARD"))) {
@@ -215,6 +223,75 @@ function scriptText(state) {
   if (!s) return "Script generated.";
   const beats = (s.beats ?? []).map((b) => `${b.start_time}–${b.end_time}s   ${b.text}`);
   return [s.title, "", ...beats].join("\n");
+}
+
+function scriptTextFull(state) {
+  const s = state.script;
+  if (!s) return "Script generated.";
+  
+  const lines = [];
+  if (s.title) lines.push(`TITLE: ${s.title}`);
+  if (s.hook) lines.push(`HOOK: ${s.hook}`);
+  lines.push("=========================================\n");
+
+  const beats = (s.beats ?? []).map((b) => {
+    return `[${b.start_time}–${b.end_time}s]
+TEXT: ${b.text}
+PURPOSE: ${b.purpose || "N/A"}
+EXPRESSION: ${b.expression || "N/A"}
+VISUAL INTENT: ${b.visual_intent || "N/A"}
+AUDIO INTENT: ${b.audio_intent || "N/A"}`;
+  });
+  
+  lines.push(...beats.join("\n\n-----------------------------------------\n\n").split("\n"));
+
+  if (s.evidence && s.evidence.length > 0) {
+    lines.push("\n=========================================");
+    lines.push("RESEARCH SOURCES:");
+    s.evidence.forEach((src) => {
+       const titleMatch = src.match(/SOURCE:\s*(.*)/);
+       const urlMatch = src.match(/URL:\s*(.*)/);
+       if (titleMatch && urlMatch) {
+         lines.push(`• ${titleMatch[1].trim()} (${urlMatch[1].trim()})`);
+       } else {
+         // fallback
+         lines.push(`• ${src.split("\\n")[0]}`);
+       }
+    });
+  }
+
+  return lines.join("\n");
+}
+
+function parseSources(evidenceList) {
+  const sources = [];
+  for (const text of evidenceList || []) {
+    if (!text) continue;
+    if (text.startsWith("http")) {
+      try {
+        const urlObj = new URL(text);
+        sources.push({ title: urlObj.hostname, url: text });
+      } catch (e) {
+        sources.push({ title: text, url: text });
+      }
+    } else {
+      const titleMatch = text.match(/SOURCE:\s*(.*)/);
+      const urlMatch = text.match(/URL:\s*(.*)/);
+      if (titleMatch && urlMatch) {
+         sources.push({ title: titleMatch[1].trim(), url: urlMatch[1].trim() });
+      }
+    }
+  }
+  // Deduplicate by URL
+  const unique = [];
+  const seen = new Set();
+  for (const s of sources) {
+    if (!seen.has(s.url)) {
+      seen.add(s.url);
+      unique.push(s);
+    }
+  }
+  return unique;
 }
 
 // function shotsOf(state) {

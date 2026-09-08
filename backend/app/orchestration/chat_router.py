@@ -10,6 +10,7 @@ import re
 
 class ChatIntent(str, Enum):
     REVISE_SCRIPT_BEAT = "revise_script_beat"
+    GENERATE_SCRIPT = "generate_script"
     REGENERATE_SCRIPT = "regenerate_script"
     REGENERATE_STORYBOARD = "regenerate_storyboard"
     CHANGE_AUDIO_MODE = "change_audio_mode"
@@ -111,8 +112,12 @@ class ChatIntentRouter:
         # Detect intent
         intent, confidence = self._detect_intent(message_lower)
 
-        if confidence < 0.6 and intent != ChatIntent.CLARIFY:
-            intent = ChatIntent.CLARIFY
+        if confidence < 0.6 or intent == ChatIntent.CLARIFY:
+            # If no script exists yet, treat unclassified text as the initial brief
+            if project_data is not None and not project_data.get("script"):
+                intent = ChatIntent.GENERATE_SCRIPT
+            else:
+                intent = ChatIntent.CLARIFY
 
         # Map to action
         action_params = self._intent_to_action(intent, message_lower, project_data)
@@ -166,9 +171,12 @@ class ChatIntentRouter:
                 "instruction": instruction or "Revise this beat",
             }
 
-        elif intent == ChatIntent.REGENERATE_SCRIPT:
+        elif intent in (ChatIntent.REGENERATE_SCRIPT, ChatIntent.GENERATE_SCRIPT):
             action["stage"] = "SCRIPT"
-            action["params"] = {"regenerate": True}
+            action["params"] = {
+                "brief": message,
+                "regenerate": intent == ChatIntent.REGENERATE_SCRIPT
+            }
 
         elif intent == ChatIntent.REGENERATE_STORYBOARD:
             action["stage"] = "STORYBOARD"

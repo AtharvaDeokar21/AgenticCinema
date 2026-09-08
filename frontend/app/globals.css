@@ -65,7 +65,7 @@ a{color:inherit}
 .proscenium{position:fixed;inset:0;z-index:80;pointer-events:none}
 
 .valance{
-  position:absolute;top:0;left:0;right:0;height:clamp(46px,8vw,110px);
+  position:absolute;top:0;left:0;right:0;height:clamp(10px,2vw,25px);
   background:linear-gradient(#5A0A12,#8C1420 55%,#6B0F17);
   box-shadow:0 10px 34px rgba(0,0,0,.7);
 }

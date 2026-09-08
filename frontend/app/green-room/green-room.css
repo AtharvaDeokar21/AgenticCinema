@@ -50,7 +50,8 @@
 /* ---------- top bar, set into the valance ---------- */
 .room__top{
   position:relative;z-index:3;flex:0 0 auto;
-  height:clamp(46px,8vw,110px);
+  height:clamp(40px,7vw,80px);
+  margin-top:clamp(30px, 5vw, 60px); /* Push down completely below valance scallops */
   display:flex;align-items:center;justify-content:space-between;
   gap:16px;padding:0 clamp(56px,13vw,230px);
 }
@@ -66,11 +67,26 @@
   color:var(--brass-hot);text-shadow:0 2px 6px rgba(0,0,0,.7);
 }
 .room__file{
+  display:flex;align-items:center;gap:12px;
+}
+.room__file-id{
+  font-family:var(--sheet);
   font-size:10px;letter-spacing:.14em;color:rgba(246,231,198,.5);
 }
-@media(max-width:640px){
-  .room__top{padding:0 clamp(46px,14vw,80px)}
-  .room__file{display:none}
+.room__reset-btn{
+  display:flex;align-items:center;gap:6px;cursor:pointer;
+  background:rgba(107,15,23,.5);border:1px solid rgba(200,153,47,.4);
+  color:var(--lime);font-family:var(--sheet);font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+  padding:4px 8px;border-radius:2px;
+  transition:all .2s;
+}
+.room__reset-btn:hover{
+  background:rgba(140,20,32,.8);color:var(--brass-hot);
+  border-color:var(--brass);box-shadow:0 0 10px rgba(140,20,32,.6);
+}
+@media(max-width:800px){
+  .room__top{padding:0 clamp(30px,8vw,80px)}
+  .room__file-id{display:none}
 }
 
 /* ---------- transcript ---------- */

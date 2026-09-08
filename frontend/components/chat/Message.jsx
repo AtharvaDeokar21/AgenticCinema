@@ -89,12 +89,25 @@ export default function Message({ message }) {
           <ul className="props-strip">
             {message.files.map((file, i) => (
               <li key={i} className="prop-card prop-card--file">
-                <a href={file.url} download target="_blank" rel="noreferrer">
+                <a href={file.url} download={file.name} target="_blank" rel="noreferrer">
                   {file.name || file.url}
                 </a>
               </li>
             ))}
           </ul>
+        )}
+
+        {message.sources?.length > 0 && (
+          <div className="line__sources" style={{ marginTop: "1.5rem", fontSize: "0.9em", color: "var(--color-dim)" }}>
+            <p style={{ fontWeight: "600", marginBottom: "0.75rem", color: "var(--color-text)" }}>Useful research sources</p>
+            <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              {message.sources.map((src, i) => (
+                <li key={i}>
+                  • <a href={src.url} target="_blank" rel="noreferrer" style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: "3px" }}>{src.title}</a>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
       </div>
     </article>

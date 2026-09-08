@@ -51,7 +51,12 @@ async def chat(project_id: str, req: ChatRequest):
     if action_params.get("type") == "invoke_stage":
         stage_name = action_params.get("stage", "")
         from datetime import datetime
+        import json
         job_id = str(uuid.uuid4())
+        
+        # Serialize the parameters to be read by worker.py
+        job_result = action_params.get("params", {})
+        
         job = {
             "job_id": job_id,
             "project_id": project_id,
@@ -61,7 +66,7 @@ async def chat(project_id: str, req: ChatRequest):
             "phase": None,
             "started_at": datetime.utcnow().isoformat(),
             "completed_at": None,
-            "result": None,
+            "result": job_result if job_result else None,
             "error": None,
         }
         await JobRepository.save(job)

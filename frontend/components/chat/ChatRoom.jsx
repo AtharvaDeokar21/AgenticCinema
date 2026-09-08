@@ -118,7 +118,14 @@ export default function ChatRoom() {
           <span aria-hidden="true">&#8592;</span> Back to the theatre
         </Link>
         <p className="room__title">The Green Room</p>
-        <span className="room__file">{projectId ?? "creating workspace…"}</span>
+        <div className="room__file">
+          <span className="room__file-id">{projectId ?? "creating workspace…"}</span>
+          {projectId && (
+            <button className="room__reset-btn" title="Start a new project" onClick={() => { import("@/lib/chatApi").then(api => { api.forgetProject(); window.location.reload(); }) }}>
+              <span aria-hidden="true">↻</span> Reset Project
+            </button>
+          )}
+        </div>
       </header>
 
       <div className="room__transcript" ref={transcriptRef} onScroll={onScroll}>
