@@ -502,11 +502,11 @@
   flex-wrap: wrap
 }
 
-.tracks span {
+.tracks > li > span {
   font-size: 10.5px;
   letter-spacing: .12em;
   color: var(--brass);
-  min-width: 90px
+  min-width: 90px;
 }
 
 /* Custom Audio Player */
@@ -522,36 +522,51 @@
   max-width: 400px;
 }
 
+.custom-audio__play,
+.custom-audio__download {
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .custom-audio__play {
   background: none;
   border: none;
   color: var(--brass);
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   padding: 0;
   transition: opacity 0.2s;
 }
 
-.custom-audio__play:hover {
+.custom-audio__play:hover,
+.custom-audio__download:hover {
   opacity: 0.8;
 }
 
 .custom-audio__play svg,
 .custom-audio__download svg {
-  width: 40px;
-  height: 50px;
+  display: block;
+  width: 28px;
+  height: 28px;
+  max-width: none;
+  max-height: none;
 }
 
 .custom-audio__time {
   font-size: 10px;
   color: var(--lime-dim);
   font-variant-numeric: tabular-nums;
+  min-width: auto;
+  flex: 0 0 auto;
 }
 
 .custom-audio__slider {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
   -webkit-appearance: none;
   appearance: none;
   background: transparent;
@@ -573,18 +588,6 @@
   margin-top: -4px;
 }
 
-.custom-audio__download {
-  color: var(--brass);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: opacity 0.2s;
-  text-decoration: none;
-}
-
-.custom-audio__download:hover {
-  opacity: 0.8;
-}
 
 
 /* ---------- the composer, shaped like a clapperboard ---------- */
