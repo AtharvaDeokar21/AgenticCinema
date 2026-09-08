@@ -10,7 +10,7 @@ from datetime import datetime
 
 from app.shared.models.project import ProjectState, WorkflowConfig
 from app.shared.models.creator import CreatorProfile
-from app.persistence.repository import ProjectRepository, JobRepository, get_db
+from app.persistence.repository import ProjectRepository, JobRepository
 from app.orchestration.dag import StageType, WorkflowDAG
 
 router = APIRouter(prefix="/projects", tags=["projects"])
