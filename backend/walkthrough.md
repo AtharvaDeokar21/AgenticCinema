@@ -68,7 +68,7 @@ Demonstrate the LLM-driven Regex parsing by passing natural language instruction
 - **Payload:** 
 ```json
 { 
-  "message": "Translate the audio into Japanese." 
+  "message": "Translate the audio into Hindi." 
 }
 ```
 *(You can also use "Dub in Spanish", "Translate to Hindi", etc. The regex engine will extract the exact language and dynamically inject it into the pipeline).*
@@ -87,72 +87,18 @@ Demonstrate how the system blocks on sensitive topics (e.g. Creator Scouting) an
 }
 ```
 
-### 2. View Blocked Jobs
-- **Endpoint:** `GET /projects/{project_id}/compliance/pending`
-- *Shows a YELLOW flagged compliance checkpoint waiting for approval.*
-
-### 3. Approve the Job
-- **Endpoint:** `POST /projects/{project_id}/approve`
-- **Payload:** 
-```json
-{ 
-  "checkpoint_id": "<COPY_CHECKPOINT_ID_FROM_PREVIOUS_STEP>",
-  "comment": "Approved for demo."
-}
-```
-
 ---
 
-## Scenario 4: Fetching Generated Media Assets
-Demonstrate how the API serves binary files directly from the internal filesystem database.
-
-### 1. Fetch AI Audio Master
-```bash
-curl -X GET "http://127.0.0.1:8000/projects/{project_id}/assets?type=audio_master" --output master.wav
-```
-
-### 2. Fetch Storyboard Video Thumbnail
-```bash
-curl -X GET "http://127.0.0.1:8000/projects/{project_id}/assets?type=video_thumbnail&shot_id=01" --output thumbnail_01.png
-```
-
-### 3. Fetch Culturally Dubbed Track
-```bash
-curl -X GET "http://127.0.0.1:8000/projects/{project_id}/assets?type=dub_track&language=Japanese-Generic" --output dub_ja.wav
-```
-
----
-
-## Scenario 5: Creator Voice Workflow
+## Scenario 4: Creator Voice Workflow
 Demonstrate how users can override the default AI Voice pipeline and upload their own media for lip-syncing and dubbing.
 
-### 1. Override Workflow Mode via Chat
-- **Endpoint:** `POST /projects/{project_id}/chat`
-- **Payload:** 
-```json
-{ 
-  "message": "Use my voice instead." 
-}
-```
-
-### 2. Upload Creator Media
+### 1. Upload Creator Video
 - **Endpoint:** `POST /projects/{project_id}/media`
-- **Payload:** Upload a `.mp4` or `.wav` file as `multipart/form-data`.
+- **Payload:** Upload a `.mp4` file as `multipart/form-data`.
 
-### 3. Sync Audio
-- **Endpoint:** `POST /projects/{project_id}/chat`
 - **Payload:** 
 ```json
 { 
   "message": "Sync audio." 
-}
-```
-
-### 4. Extract Creator Voice
-- **Endpoint:** `POST /projects/{project_id}/chat`
-- **Payload:** 
-```json
-{ 
-  "message": "Extract my voice." 
 }
 ```

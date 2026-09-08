@@ -8,10 +8,10 @@ import Message from "@/components/chat/Message";
 import { ensureProject, sendToCrew } from "@/lib/chatApi";
 
 const OPENERS = [
-  "Write me a 60-second explainer on UPI credit lines",
-  "Plan the shots for the script we just wrote",
-  "Here's my footage — where does the audio go?",
-  "Check this script for rights problems",
+  "Write a 3-beat script about a futuristic cyberpunk coffee brand.",
+  "Find brand deals for a cinematic filmmaker.",
+  "Translate the audio into Hindi.",
+  "Generate audio for this script.",
 ];
 
 const nextId = () => typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `m${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
