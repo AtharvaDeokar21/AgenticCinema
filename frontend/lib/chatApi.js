@@ -214,6 +214,7 @@ function describe(before, after, projectId, stage) {
     return reply({
       agent: "Syncer",
       text: [`Sync ${after.sync_report?.status ?? "done"}.`, ...notes].join("\n"),
+      timeline: after.sync_report?.editor_timeline_text,
     });
   }
 

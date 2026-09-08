@@ -104,6 +104,13 @@ export default function Message({ message }) {
             .map((paragraph, i) => <p key={i}>{paragraph}</p>)
         )}
 
+        {message.timeline && (
+          <details className="line__timeline">
+            <summary>Timeline Details</summary>
+            <pre>{message.timeline}</pre>
+          </details>
+        )}
+
         {/* what the creator attached */}
         {message.attachments?.length > 0 && (
           <ul className="props-strip">

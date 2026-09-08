@@ -314,6 +314,33 @@
   color: var(--lime)
 }
 
+.line__timeline {
+  margin: 12px 0 0;
+  font-size: 11px;
+  color: var(--lime-dim);
+}
+
+.line__timeline summary {
+  cursor: pointer;
+  color: var(--brass);
+  letter-spacing: .08em;
+  font-weight: bold;
+  margin-bottom: 8px;
+  outline: none;
+}
+
+.line__timeline pre {
+  margin: 0;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(200, 153, 47, 0.2);
+  border-radius: 4px;
+  overflow-x: auto;
+  font-family: monospace;
+  line-height: 1.4;
+  color: var(--lime);
+}
+
 .line__error {
   color: #E8898F !important
 }
