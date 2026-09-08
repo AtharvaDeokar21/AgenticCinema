@@ -14,6 +14,7 @@ from app.persistence.repository import (
     JobRepository,
     ProjectRepository,
     ComplianceCheckpointRepository,
+    MediaRepository,
 )
 from app.orchestration.dag import StageType
 from app.orchestration.compliance_decorator import ComplianceDecorator
@@ -189,6 +190,59 @@ async def _execute_job(job: dict) -> None:
                 for shot in shot_plan.shots:
                     if shot.shot_id in asset_map:
                         shot.generated_image = asset_map[shot.shot_id]
+                # Save storyboard shot keyframes to DB
+                for asset in assets.storyboard_assets:
+                    if asset.shot_id and asset.image_path and Path(asset.image_path).exists():
+                        try:
+                            img_data = Path(asset.image_path).read_bytes()
+                            await MediaRepository.save_media(
+                                project_id=project_id,
+                                media_id=f"{project_id}_shot_{asset.shot_id}",
+                                asset_type="storyboard",
+                                filename=f"{asset.shot_id}.png",
+                                content_type="image/png",
+                                data=img_data,
+                                metadata={"shot_id": asset.shot_id, "prompt": getattr(asset, "prompt", None)},
+                            )
+                        except Exception as exc:
+                            logger.error("[Worker] Error saving storyboard asset %s to DB: %s", asset.shot_id, exc)
+
+            # Save thumbnails to DB
+            if assets and hasattr(assets, "thumbnails"):
+                for thumb in assets.thumbnails:
+                    if thumb.image_path and Path(thumb.image_path).exists():
+                        try:
+                            thumb_data = Path(thumb.image_path).read_bytes()
+                            await MediaRepository.save_media(
+                                project_id=project_id,
+                                media_id=f"{project_id}_thumbnail_{thumb.variant}",
+                                asset_type="video_thumbnail",
+                                filename=f"thumbnail_{thumb.variant}.png",
+                                content_type="image/png",
+                                data=thumb_data,
+                                metadata={"shot_id": thumb.variant, "variant": thumb.variant},
+                            )
+                        except Exception as exc:
+                            logger.error("[Worker] Error saving thumbnail %s to DB: %s", thumb.variant, exc)
+
+            # Also ensure any thumbnails written to disk directory are persisted to DB
+            thumb_dir = Path(f"storage/storyboard/generated/{project_id}/thumbnails")
+            if thumb_dir.exists():
+                for p in thumb_dir.glob("*.png"):
+                    try:
+                        variant = p.stem.replace("thumbnail_", "")
+                        await MediaRepository.save_media(
+                            project_id=project_id,
+                            media_id=f"{project_id}_{p.stem}",
+                            asset_type="video_thumbnail",
+                            filename=p.name,
+                            content_type="image/png",
+                            data=p.read_bytes(),
+                            metadata={"shot_id": variant, "variant": variant},
+                        )
+                    except Exception as exc:
+                        logger.error("[Worker] Error saving thumbnail file %s to DB: %s", p.name, exc)
+
             if assets and assets.errors:
                 logger.error("[Storyboard] Asset generation errors: %s", assets.errors)           
             project.storyboard = shot_plan
@@ -224,6 +278,22 @@ async def _execute_job(job: dict) -> None:
             result = await agent.run(request)
             project.audio_master = result.audio_master
             compliance_data = {"audio": result.audio_master}
+
+            # Save audio master to DB
+            if project.audio_master and project.audio_master.file_path and Path(project.audio_master.file_path).exists():
+                try:
+                    audio_bytes = Path(project.audio_master.file_path).read_bytes()
+                    await MediaRepository.save_media(
+                        project_id=project_id,
+                        media_id=f"{project_id}_audio_master",
+                        asset_type="audio_master",
+                        filename="master.wav",
+                        content_type="audio/wav",
+                        data=audio_bytes,
+                        metadata={"duration": project.audio_master.duration, "mode": stage.value},
+                    )
+                except Exception as exc:
+                    logger.error("[Worker] Error saving audio master to DB: %s", exc)
 
         elif stage == StageType.SYNC:
             from app.agents.syncer.agent import SyncerAgent
@@ -299,6 +369,29 @@ async def _execute_job(job: dict) -> None:
                 logger.error("[Dubbing] degraded: %s", result.degraded_reasons)
             project.dub_tracks = result.tracks
             compliance_data = {"dubbing": result}
+
+            # Save dub tracks to DB
+            if project.dub_tracks:
+                for track in project.dub_tracks:
+                    if track.audio_path and Path(track.audio_path).exists():
+                        try:
+                            dub_bytes = Path(track.audio_path).read_bytes()
+                            locale_key = f"{track.language}-{track.geography}"
+                            await MediaRepository.save_media(
+                                project_id=project_id,
+                                media_id=f"{project_id}_dub_{track.language}_{track.geography}",
+                                asset_type="dub_track",
+                                filename=f"dub_{track.language}_{track.geography}.wav",
+                                content_type="audio/wav",
+                                data=dub_bytes,
+                                metadata={
+                                    "language": locale_key,
+                                    "lang": track.language,
+                                    "geo": track.geography,
+                                },
+                            )
+                        except Exception as exc:
+                            logger.error("[Worker] Error saving dub track %s to DB: %s", track.language, exc)
 
         elif stage == StageType.CREATOR_SCOUT:
             from app.agents.creator_scout.agent import CreatorScoutAgent

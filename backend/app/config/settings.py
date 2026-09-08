@@ -1,5 +1,5 @@
 from functools import lru_cache
-
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -7,6 +7,13 @@ class Settings(BaseSettings):
     app_name: str = "Agentic Cinema"
     app_env: str = "development"
     debug: bool = True
+
+    @field_validator("debug", mode="before")
+    @classmethod
+    def parse_debug(cls, v):
+        if isinstance(v, str):
+            return v.lower() in ("true", "1", "yes", "on", "t", "dev", "development")
+        return bool(v)
 
     # Gemini API
     gemini_api_key: str = ""

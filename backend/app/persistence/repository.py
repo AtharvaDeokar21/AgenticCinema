@@ -82,6 +82,25 @@ def init_db():
         )
     """)
 
+    # Media binary storage (images, audio, video)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS media (
+            media_id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            asset_type TEXT NOT NULL,
+            filename TEXT NOT NULL,
+            content_type TEXT NOT NULL,
+            data BLOB NOT NULL,
+            metadata JSON,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (project_id) REFERENCES projects(project_id)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_media_project_type ON media(project_id, asset_type)
+    """)
+
     conn.commit()
     conn.close()
 
@@ -212,6 +231,7 @@ class ProjectRepository:
         """Delete project and all associated records"""
         conn = get_db()
         cursor = conn.cursor()
+        cursor.execute("DELETE FROM media WHERE project_id = ?", (project_id,))
         cursor.execute("DELETE FROM compliance_checkpoints WHERE project_id = ?", (project_id,))
         cursor.execute("DELETE FROM jobs WHERE project_id = ?", (project_id,))
         cursor.execute("DELETE FROM projects WHERE project_id = ?", (project_id,))
@@ -394,3 +414,170 @@ class ComplianceCheckpointRepository:
         rows = cursor.fetchall()
         conn.close()
         return [dict(row) for row in rows]
+
+
+class MediaRepository:
+    """CRUD operations for Media binary data stored in SQLite"""
+
+    @staticmethod
+    async def save_media(
+        project_id: str,
+        media_id: str,
+        asset_type: str,
+        filename: str,
+        content_type: str,
+        data: bytes,
+        metadata: Optional[dict] = None,
+    ) -> None:
+        """Save or replace a media asset with binary content."""
+        conn = get_db()
+        cursor = conn.cursor()
+        now = datetime.utcnow().isoformat()
+        cursor.execute("""
+            INSERT OR REPLACE INTO media
+            (media_id, project_id, asset_type, filename, content_type, data, metadata, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            media_id,
+            project_id,
+            asset_type,
+            filename,
+            content_type,
+            data,
+            json.dumps(metadata) if metadata else None,
+            now,
+        ))
+        conn.commit()
+        conn.close()
+
+    @staticmethod
+    async def get_media(media_id: str) -> Optional[dict]:
+        """Fetch media by unique media_id."""
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM media WHERE media_id = ?", (media_id,))
+        row = cursor.fetchone()
+        conn.close()
+        if not row:
+            return None
+        res = dict(row)
+        if res.get("metadata") and isinstance(res["metadata"], str):
+            try:
+                res["metadata"] = json.loads(res["metadata"])
+            except Exception:
+                pass
+        return res
+
+    @staticmethod
+    async def get_by_project_and_type(
+        project_id: str,
+        asset_type: str,
+        shot_id: Optional[str] = None,
+        language: Optional[str] = None,
+    ) -> Optional[dict]:
+        """Fetch media asset for a project by asset_type, with optional shot_id or language filtering."""
+        conn = get_db()
+        cursor = conn.cursor()
+
+        # Query all candidate records for this project and asset_type
+        # Allow 'thumbnail' to match 'video_thumbnail' as well
+        candidate_types = [asset_type]
+        if asset_type == "thumbnail":
+            candidate_types.append("video_thumbnail")
+        elif asset_type == "video_thumbnail":
+            candidate_types.append("thumbnail")
+
+        placeholders = ",".join("?" for _ in candidate_types)
+        cursor.execute(
+            f"SELECT * FROM media WHERE project_id = ? AND asset_type IN ({placeholders}) ORDER BY created_at DESC",
+            (project_id, *candidate_types),
+        )
+        rows = cursor.fetchall()
+        conn.close()
+
+        if not rows:
+            return None
+
+        for r in rows:
+            record = dict(r)
+            meta = {}
+            if record.get("metadata") and isinstance(record["metadata"], str):
+                try:
+                    meta = json.loads(record["metadata"])
+                except Exception:
+                    pass
+            record["metadata"] = meta
+
+            if shot_id is not None:
+                # Format check: e.g. "01" or "1"
+                s_id = str(meta.get("shot_id") or meta.get("variant") or "")
+                raw_shot = str(shot_id)
+                # Compare padded or exact
+                if (
+                    s_id == raw_shot
+                    or s_id == raw_shot.zfill(2)
+                    or record["media_id"].endswith(f"_{raw_shot}")
+                    or record["media_id"].endswith(f"_{raw_shot.zfill(2)}")
+                    or record["filename"].startswith(f"{raw_shot}.")
+                    or record["filename"].startswith(f"{raw_shot.zfill(2)}.")
+                    or record["filename"] == f"thumbnail_{raw_shot}.png"
+                    or record["filename"] == f"thumbnail_{raw_shot.zfill(2)}.png"
+                ):
+                    return record
+            elif language is not None:
+                lang = str(meta.get("language") or meta.get("locale") or "")
+                raw_lang = str(language).lower()
+                if (
+                    lang.lower() == raw_lang
+                    or raw_lang in record["media_id"].lower()
+                    or raw_lang in record["filename"].lower()
+                ):
+                    return record
+            else:
+                return record
+
+        return None
+
+    @staticmethod
+    async def list_by_project(project_id: str) -> list[dict]:
+        """List metadata for all media assets belonging to a project."""
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT media_id, project_id, asset_type, filename, content_type, LENGTH(data) as size, metadata, created_at FROM media WHERE project_id = ? ORDER BY created_at DESC",
+            (project_id,),
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        items = []
+        for row in rows:
+            item = dict(row)
+            if item.get("metadata") and isinstance(item["metadata"], str):
+                try:
+                    item["metadata"] = json.loads(item["metadata"])
+                except Exception:
+                    pass
+            items.append(item)
+        return items
+
+    @staticmethod
+    async def delete_media(media_id: str) -> bool:
+        """Delete a media asset by media_id."""
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM media WHERE media_id = ?", (media_id,))
+        deleted = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        return deleted
+
+    @staticmethod
+    async def delete_by_project(project_id: str) -> int:
+        """Delete all media assets for a project."""
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM media WHERE project_id = ?", (project_id,))
+        count = cursor.rowcount
+        conn.commit()
+        conn.close()
+        return count
