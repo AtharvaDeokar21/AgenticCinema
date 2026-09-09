@@ -18,7 +18,7 @@ The result is a single unified production workspace where creators can move from
 ## 🔗 Quick Links
 
 * 🌐 **Live Web Application:** [https://creatorcrew3.vercel.app/](https://creatorcrew3.vercel.app/)
-* 🎥 **Video Walkthrough:** [Demo Video Link](#)
+* 🎥 **Video Walkthrough:** [Demo Video Link](https://youtu.be/oPTGdbAqEIY)
 * 📖 **Backend Technical Reference:** [backend/API_REFERENCE.md](backend/API_REFERENCE.md)
 * 👥 **Team:** Atharva Deokar, Mayank Chauhan, Asmiya Sayyad, Saur Deshmukh
 
