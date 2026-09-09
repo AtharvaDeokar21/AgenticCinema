@@ -5,12 +5,13 @@ All routes previously scattered in main.py are now here.
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
+import json
 import uuid
 from datetime import datetime
 
 from app.shared.models.project import ProjectState, WorkflowConfig
 from app.shared.models.creator import CreatorProfile
-from app.persistence.repository import ProjectRepository, JobRepository, get_db
+from app.persistence.repository import ProjectRepository, JobRepository
 from app.orchestration.dag import StageType, WorkflowDAG
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -168,22 +169,22 @@ async def list_jobs(project_id: str):
 @router.get("/{project_id}/jobs/{job_id}")
 async def get_job_status(project_id: str, job_id: str):
     """Poll job status from the database"""
-    # Quick sanity check for project
     project = await ProjectRepository.load(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # Fetch from SQLite via JobRepository (using direct fetch since get_by_project returns all)
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,))
-    row = cursor.fetchone()
-    conn.close()
-
-    if not row:
+    job = await JobRepository.load(job_id)
+    if not job or job.get("project_id") != project_id:
         raise HTTPException(status_code=404, detail="Job not found")
-    
-    return dict(row)
+
+    # Deserialize JSON fields if they are stringified
+    if isinstance(job.get("result"), str):
+        try:
+            job["result"] = json.loads(job["result"])
+        except Exception:
+            pass
+
+    return job
 
 
 @router.get("/{project_id}/dag")

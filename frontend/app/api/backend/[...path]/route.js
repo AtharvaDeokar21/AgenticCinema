@@ -15,7 +15,7 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
+const BACKEND_URL = process.env.BACKEND_URL ?? "https://creatorcrew.onrender.com";
 
 // Hop-by-hop and Next-injected headers that must not be forwarded upstream.
 const STRIP_REQUEST = new Set([
@@ -29,6 +29,8 @@ const STRIP_REQUEST = new Set([
 ]);
 
 // Headers worth passing back so <img>, <audio> and download links behave.
+// NOTE: "content-length" and "content-encoding" are intentionally excluded
+// because fetch() decompresses upstream bodies, which causes mismatched Content-Length.
 const KEEP_RESPONSE = [
   "content-type",
   "content-disposition",
