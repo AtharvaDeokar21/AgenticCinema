@@ -1,1084 +1,334 @@
 # 🎬 CreatorCrew
 
-> **An agentic AI production studio for creators, filmmakers, and screenwriters.**
+### An AI-native, multi-agent production studio for creators
 
-CreatorCrew is a multi-agent AI system designed to assist creators across the content-production lifecycle, from discovering opportunities and developing scripts to storyboarding, audio production, cultural localization, synchronization, compliance, and creator discovery.
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-creatorcrew3.vercel.app-blue?style=for-the-badge&logo=vercel)](https://creatorcrew3.vercel.app/)
+[![API Docs](https://img.shields.io/badge/API%20Docs-FastAPI%20Swagger-emerald?style=for-the-badge&logo=fastapi)](https://creatorcrew.onrender.com/docs)
+[![Python 3.12](https://img.shields.io/badge/Backend-Python%203.12-yellow?style=for-the-badge&logo=python)](https://python.org)
+[![Next.js 14](https://img.shields.io/badge/Frontend-Next.js%2014-black?style=for-the-badge&logo=nextdotjs)](https://nextjs.org)
 
-The system is built around **Gemini + Google Agent Development Kit (ADK) + Parallel Web Systems**, with deterministic media tooling handling operations that should not be delegated to an LLM.
+**CreatorCrew** is an end-to-end AI video production platform that transforms a creator's natural-language idea into a coordinated, multi-stage production workflow.
 
----
+Instead of forcing creators to manually switch between disconnected tools for scripting, web research, visual reference extraction, storyboarding, production constraint planning, voice generation, multilingual dubbing, media uploads, and compliance clearance, CreatorCrew orchestrates specialized AI agents through a shared, stateful project workflow.
 
-# 1. Vision
-
-The goal is not to build a chatbot that gives filmmaking advice.
-
-The goal is to build an **agentic production workflow** where specialized agents can reason about a project, use external tools, research current information, generate creative assets, analyze media, and update a shared project state.
-
-The core design principle is:
-
-```text
-                User / Creator
-                      │
-                      ▼
-               Project State
-                      │
-                      ▼
-                 Orchestrator
-                      │
-       ┌──────────────┼──────────────┐
-       ▼              ▼              ▼
-     Agents         Agents         Agents
-       │              │              │
-       └──────────────┼──────────────┘
-                      ▼
-                Updated State
-```
-
-Agents **do not directly call other agents**.
-
-Instead:
-
-```text
-Agent
-  ↓
-Read ProjectState
-  ↓
-Perform reasoning + tool calls
-  ↓
-Write result back to ProjectState
-  ↓
-Orchestrator decides what runs next
-```
-
-This keeps every agent independently replaceable and allows the workflow to evolve without tightly coupling agents together.
+The result is a single unified production workspace where creators can move from **idea → script → visual research → storyboard → production planning → audio → dubbing → final assets** using natural-language instructions.
 
 ---
 
-# 2. Core Technology Stack
+## 🔗 Quick Links
 
-| Layer                      | Technology                       | Purpose                                                  |
-| -------------------------- | -------------------------------- | -------------------------------------------------------- |
-| LLM / Multimodal reasoning | Gemini                           | Reasoning, generation, video/audio understanding         |
-| Agent framework            | Google ADK                       | Agent definitions, tools, orchestration                  |
-| Agent runtime              | Agent Engine                     | Managed agent execution                                  |
-| Web intelligence           | Parallel Web Systems             | Search, extraction, research and current web information |
-| Backend                    | Python                           | Core application and agent logic                         |
-| API layer                  | FastAPI                          | Backend API                                              |
-| Data validation            | Pydantic                         | Shared state and agent contracts                         |
-| Media processing           | FFmpeg / FFprobe                 | Deterministic media operations                           |
-| Image generation           | Imagen / Gemini image generation | Storyboards, concept art, thumbnails                     |
-| Audio                      | Gemini TTS / Lyria               | Voice, music and audio generation                        |
-| Storage                    | Cloud Storage                    | Media staging                                            |
-| Deployment                 | Cloud Run / Agent Engine         | Backend and agent deployment                             |
+* 🌐 **Live Web Application:** [https://creatorcrew3.vercel.app/](https://creatorcrew3.vercel.app/)
+* 🎥 **Video Walkthrough:** [Demo Video Link](#)
+* 📖 **Backend Technical Reference:** [backend/API_REFERENCE.md](backend/API_REFERENCE.md)
+* 👥 **Team:** Atharva Deokar, Mayank Chauhan, Asmiya Sayyad, Saur Deshmukh
 
 ---
 
-# 3. Important Architecture Principle
+## 🚨 The Problem
 
-### Gemini decides. Deterministic tools execute.
+Modern generative AI has made individual creative tasks accessible, but the actual video production workflow remains deeply fragmented.
 
-We do **not** ask an LLM to perform operations that should be deterministic.
+A creator today typically must:
 
-For example:
+1. **Draft a script** using an isolated LLM chat interface.
+2. **Search the web and video platforms** separately for visual references and mood boards.
+3. **Manually inspect references** to determine camera angles, lighting schemes, and visual grammar.
+4. **Build a storyboard** from scratch without real-world equipment awareness.
+5. **Estimate gear feasibility** manually (e.g. *"Can I shoot this on a smartphone with a tripod as a solo creator?"*).
+6. **Generate voiceovers** on a separate TTS portal with rigid timing.
+7. **Translate and dub content** using third-party localization tools that miss cultural nuance.
+8. **Verify copyright and compliance** risks (brand logos, music, likeness rights) manually.
+9. **Coordinate state by hand**—tracking which assets are ready and which downstream stages are blocked.
 
-```text
-Gemini:
-"Remove dead air from 01:12 to 01:19."
+The fundamental issue is not generation quality—**the problem is coordination**.
 
-        ↓
-
-FFmpeg:
-Actually performs the cut.
-```
-
-Similarly:
-
-```text
-Gemini:
-"This dialogue needs to be approximately
-1.4 seconds shorter."
-
-        ↓
-
-Audio / TTS pipeline:
-Regenerates the required segment.
-```
-
-The project plan explicitly follows this separation between model reasoning and deterministic execution.
+There has been no production intelligence layer that connects real-time web intelligence, multimodal reasoning, production constraint solvers, and deterministic media tooling into one cohesive system.
 
 ---
 
-# 4. Agent Architecture
+## 💡 Our Solution
 
-The system currently contains seven planned agents.
+CreatorCrew acts as an **AI-native production studio**.
 
-```text
-agents/
-│
-├── script_suggestor/
-├── storyboard/
-├── syncer/
-├── audio/
-├── cultural_dub/
-├── compliance/
-└── creator_scout/
-```
+Creators interact using natural language:
 
-### Script Suggestor
-
-Responsible for transforming a creator's brief into script/story recommendations.
-
-Uses:
-
-* Gemini
-* Parallel Search
-* Creator/project context
-* Existing script history
-
-The planned workflow includes research, trend understanding, script development and evidence-backed recommendations.
-
----
-
-### Storyboard
-
-Transforms the script into a visual production plan.
-
-Expected responsibilities include:
-
-* Shot planning
-* Camera/framing recommendations
-* Visual grammar
-* Lighting
-* Mood
-* Background
-* Movement
-* Concept art
-* Storyboard panels
-* Thumbnail variants
-
-Parallel provides web/reference research while Gemini handles multimodal analysis and generation.
-
----
-
-### Syncer
-
-Handles synchronization of independently recorded media.
-
-Inputs can include:
-
-* Main camera clips
-* Phone/B-roll footage
-* Separate recorder audio
-* Creator notes
-
-The Syncer does **not render the final video**.
-
-Its primary responsibility is to analyze the media and produce a synchronization report/instructions.
-
-The intended architecture uses:
-
-```text
-FFprobe
-   ↓
-Media metadata
-   ↓
-Gemini transcription
-   ↓
-Timestamped transcripts
-   ↓
-Cross-source matching
-   ↓
-Sync Report
-```
-
-The project plan specifically describes using the camera's onboard audio as a synchronization reference and producing timestamp-based alignment instructions rather than pretending the model performs waveform mathematics.
-
----
-
-### Audio
-
-Handles audio generation and analysis.
-
-Planned capabilities include:
-
-* Audio analysis
-* Segment analysis
-* Voice generation
-* Music generation
-* Sound effects
-* Audio cleanup
-* Audio master generation
-
-Technologies include Gemini multimodal capabilities, Gemini TTS and Lyria.
-
----
-
-### Cultural Dub
-
-Handles localization and culturally appropriate dubbing.
-
-Expected responsibilities include:
-
-* Dialogue adaptation
-* Cultural localization
-* Multi-language generation
-* Voice generation
-* Subtitle/localization support
-* Segment-level processing
-
-The agent should preserve the original narrative intent rather than performing literal word-for-word translation.
-
----
-
-### Compliance
-
-Evaluates generated or creator-provided content for relevant risks.
-
-The compliance workflow should produce structured findings rather than simply returning:
-
-```text
-"Looks safe."
-```
-
-A useful output should identify:
-
-```text
-Risk
-Severity
-Reason
-Evidence
-Recommended action
-```
-
-Where external-world claims are involved, the system should retain supporting evidence.
-
----
-
-### Creator Scout
-
-Discovers potential creators, brands and collaboration opportunities.
-
-Expected capabilities include:
-
-* Creator discovery
-* Brand discovery
-* Opportunity ranking
-* Public web research
-* Deal-context matching
-* Creator/project compatibility analysis
-
-Parallel provides the web research layer for this agent.
-
-The project plan specifically describes using Parallel capabilities such as FindAll, Entity Search, Search, Extract and Task depending on the research requirement.
-
----
-
-# 5. Shared Project State
-
-The central data structure is:
-
-```text
-backend/app/shared/models/project.py
-```
-
-It contains:
-
-```python
-ProjectState
-```
-
-The state currently contains:
-
-```text
-ProjectState
-│
-├── project_id
-├── project_name
-│
-├── creator_profile
-├── deal_context
-│
-├── script
-├── storyboard
-├── media_manifest
-│
-├── sync_report
-├── audio_master
-├── dub_tracks
-│
-├── clearance_report
-├── creator_recommendations
-│
-├── current_stage
-├── updated_at
-└── errors
-```
-
-This is the central contract between agents.
-
-For example:
-
-```text
-Script Suggestor
-       │
-       ▼
-ProjectState.script
-       │
-       ▼
-Storyboard
-       │
-       ▼
-ProjectState.storyboard
-```
-
-The next agent does not need to know how the previous agent internally worked.
-
-It only needs the relevant state.
-
----
-
-# 6. Shared Models
-
-All cross-agent contracts live under:
-
-```text
-backend/app/shared/models/
-```
-
-Current model categories:
-
-```text
-models/
-├── project.py
-├── creator.py
-├── creator_scout.py
-├── deal.py
-├── script.py
-├── storyboard.py
-├── media.py
-├── sync.py
-├── audio.py
-├── dub.py
-└── compliance.py
-```
-
-### Rule
-
-If information needs to move between agents, it should eventually have a **shared Pydantic model**.
-
-Avoid passing undocumented dictionaries between agents.
-
----
-
-# 7. Shared Tools
-
-Common external capabilities live under:
-
-```text
-backend/app/shared/tools/
-```
-
-Current structure:
-
-```text
-tools/
-│
-├── gemini/
-│   └── ...
-│
-├── parallel/
-│   └── ...
-│
-├── media/
-│   └── ...
-│
-├── audio/
-│   └── ...
-│
-└── vision/
-    └── ...
-```
-
-These are **tools**, not agents.
-
-For example:
-
-```text
-Script Suggestor
-     │
-     ├── Gemini
-     └── Parallel Search
-```
-
-rather than:
-
-```text
-Script Suggestor
-     │
-     └── Parallel Agent
-```
-
----
-
-# 8. Gemini Integration
-
-Gemini is wrapped as a shared service so individual agents do not repeatedly implement authentication and API configuration.
-
-Location:
-
-```text
-backend/app/shared/tools/gemini/
-```
-
-Current status:
-
-```text
-Gemini API
-    ↓
-GeminiClient
-    ↓
-Working ✅
-```
-
-Test:
-
-```powershell
-cd backend
-python -m scripts.test_gemini
-```
-
-If the test produces a generated response, Gemini connectivity is working.
-
----
-
-# 9. Parallel Integration
-
-Parallel is a mandatory runtime integration for this hackathon.
-
-It is **not enough to mention Parallel in the README**.
-
-The application must actually invoke Parallel at runtime.
-
-Current structure:
-
-```text
-backend/app/shared/tools/parallel/
-├── client.py
-├── search.py
-└── __init__.py
-```
-
-Current flow:
-
-```text
-Agent
-  ↓
-ParallelSearch
-  ↓
-Parallel SDK
-  ↓
-Parallel Search API
-  ↓
-Fresh web results
-```
-
-Test:
-
-```powershell
-cd backend
-python -m scripts.test_parallel
-```
-
-Parallel is intended to provide:
-
-* Search
-* Web extraction
-* Research
-* Current information
-* Evidence / URLs
-
-Different agents may use different Parallel capabilities depending on their workflow.
-
-The project plan identifies Search, Extract, Task, FindAll, Entity Search and Monitor as relevant capabilities across the system.
-
----
-
-# 10. Grounding / Evidence Rule
-
-A core system rule:
-
-> **Claims about the outside world should have evidence.**
-
-For example:
-
-```text
-❌ "This creator has 2.5M followers."
-
-✅ "This creator has 2.5M followers."
-   └── Source URL
-```
-
-Parallel results provide web sources and excerpts, while research-oriented workflows can preserve supporting evidence.
-
-The final system should avoid allowing unsupported external claims to silently pass through the pipeline.
-
----
-
-# 11. Media Architecture
-
-Media processing is intentionally separated from model reasoning.
-
-```text
-                 Media Asset
-                      │
-              ┌───────┴────────┐
-              ▼                ▼
-           FFprobe           Gemini
-              │                │
-       technical data      semantic data
-              │                │
-              └───────┬────────┘
-                      ▼
-                  Agent Logic
-                      │
-                      ▼
-              Deterministic Tool
-                      │
-                      ▼
-                Final Media
-```
-
-FFmpeg/FFprobe will be used for:
-
-* Media inspection
-* Frame extraction
-* Audio/video processing
-* Rendering operations
-* Deterministic transformations
-
-FFmpeg installation is a local development dependency and is not required for the initial Gemini/Parallel integration tests.
-
----
-
-# 12. Environment Setup
-
-Create a virtual environment:
-
-```powershell
-python -m venv myenv
-```
-
-Activate:
-
-```powershell
-.\myenv\Scripts\Activate.ps1
-```
-
-Install backend dependencies:
-
-```powershell
-cd backend
-pip install -r requirements.txt
-```
-
-Environment variables belong in:
-
-```text
-backend/.env
-```
-
-Never commit `.env`.
-
-Use:
-
-```text
-backend/.env.example
-```
-
-for documenting required variables.
-
-Expected configuration includes credentials for services such as:
-
-```env
-GEMINI_API_KEY=
-PARALLEL_API_KEY=
-```
-
-Additional cloud credentials will be added when the corresponding infrastructure is introduced.
-
----
-
-# 13. Current Development Status
-
-### Foundation
-
-| Component                     | Status |
-| ----------------------------- | ------ |
-| Repository structure          | ✅      |
-| Backend / Frontend separation | ✅      |
-| Python environment            | ✅      |
-| Shared Pydantic models        | ✅      |
-| ProjectState                  | ✅      |
-| Gemini integration            | ✅      |
-| Parallel Search integration   | ✅      |
-| Agent folders                 | ✅      |
-| Base agent contract           | ✅      |
-| FFmpeg                        | ⏳      |
-| ADK agent implementation      | ⏳      |
-| Orchestrator                  | ⏳      |
-| Frontend                      | ⏳      |
-| Cloud deployment              | ⏳      |
-
----
-
-# 14. Repository Structure
-
-Current high-level structure:
-
-```text
-AgenticCinema/
-│
-├── README.md
-├── .gitignore
-│
-├── backend/
-│   │
-│   ├── .env
-│   ├── .env.example
-│   ├── requirements.txt
-│   │
-│   ├── app/
-│   │   ├── __init__.py
-│   │   ├── main.py
-│   │   │
-│   │   ├── agents/
-│   │   │   ├── script_suggestor/
-│   │   │   ├── storyboard/
-│   │   │   ├── syncer/
-│   │   │   ├── audio/
-│   │   │   ├── cultural_dub/
-│   │   │   ├── compliance/
-│   │   │   └── creator_scout/
-│   │   │
-│   │   ├── orchestrator/
-│   │   │
-│   │   ├── shared/
-│   │   │   ├── models/
-│   │   │   └── tools/
-│   │   │
-│   │   ├── api/
-│   │   └── config/
-│   │
-│   ├── scripts/
-│   │   ├── test_gemini.py
-│   │   ├── test_parallel.py
-│   │   └── test_project_state.py
-│   │
-│   └── tests/
-│
-└── frontend/
-```
-
----
-
-# 15. Where Should I Work?
-
-Use the following ownership model:
-
-| Area             | Primary owner      |
-| ---------------- | ------------------ |
-| Script Suggestor | Assigned developer |
-| Storyboard       | Assigned developer |
-| Syncer           | Assigned developer |
-| Audio            | Assigned developer |
-| Cultural Dub     | Assigned developer |
-| Compliance       | Assigned developer |
-| Creator Scout    | Assigned developer |
-| Shared Models    | Team               |
-| Shared Tools     | Team               |
-| Orchestrator     | Team               |
-| Frontend         | Team               |
-
-Developer names are intentionally **not encoded into the repository structure**.
-
-Ownership is managed through Git branches and team coordination.
-
----
-
-# 16. Git Workflow
-
-Do not directly develop features on `main`.
-
-Create a feature branch:
-
-```powershell
-git checkout -b feature/<agent-name>
-```
-
-Examples:
-
-```text
-feature/script-suggestor
-feature/storyboard
-feature/syncer
-feature/audio
-feature/cultural-dub
-feature/compliance
-feature/creator-scout
-```
+> *"Write a 3-beat script about a futuristic cyberpunk coffee brand."*
 
 Then:
 
-```powershell
-git add .
-git commit -m "feat: implement <feature>"
-git push origin feature/<agent-name>
+> *"Generate a storyboard based on cinematic sci-fi references."*
+
+Then:
+
+> *"Generate voiceover for this script."*
+
+Or:
+
+> *"Translate and dub the audio into Hindi with localized cultural framing."*
+
+Behind the scenes, the **Orchestrator** interprets creator intent, evaluates the project's **Workflow DAG**, verifies dependencies and compliance checkpoints, and queues background jobs for specialized agents.
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                        CREATOR NATURAL LANGUAGE                        │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                     INTENT ROUTER & WORKFLOW DAG                       │
+│     (Evaluates State, Ready Stages, Dependencies & Guardrails)         │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+    ┌────────────────┬──────────────┼──────────────┬────────────────┐
+    ▼                ▼              ▼              ▼                ▼
+┌─────────┐    ┌───────────┐  ┌───────────┐  ┌───────────┐    ┌───────────┐
+│ Script  │    │Storyboard │  │   Audio   │  │ Cultural  │    │Compliance │
+│  Agent  │    │  Pipeline │  │   Agent   │  │ Dub Agent │    │   Agent   │
+└────┬────┘    └─────┬─────┘  └─────┬─────┘  └─────┬─────┘    └─────┬─────┘
+     │               │              │              │                │
+     ▼               ▼              ▼              ▼                ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│               SHARED DATABASE & STATE PERSISTENCE LAYER                │
+│    (PostgreSQL / SQLite: Scripts, Shots, Binary Media, Approvals)      │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
-Create a Pull Request into `main`.
+### Core Principle
+> **Creators express intent. Agents execute the production workflow. Deterministic tools handle media operations.**
 
 ---
 
-# 17. Rules for Agent Development
+## 🧠 System Architecture & Multi-Agent Workflow
 
-### Rule 1: Don't call another agent directly
+```mermaid
+flowchart TD
+    User([Creator / User]) -->|Natural Language Chat| ChatRouter[Chat Intent Router]
+    ChatRouter -->|Queue Jobs| DAG[Workflow DAG & State Machine]
+    DAG --> Worker[Persistent Async Worker Loop]
 
-Avoid:
+    subgraph Agents [Specialized Production Agents]
+        Worker --> ScriptAgent[1. Script Suggestor Agent\nGemini 3.7 Flash]
+        Worker --> StoryboardAgent[2. Storyboard & Visual Agent\nParallel + Gemini Vision + FLUX]
+        Worker --> AudioAgent[3. Audio Master Agent\nGemini TTS + FFmpeg]
+        Worker --> DubAgent[4. Cultural Dubbing Agent\nParallel + Gemini + TTS]
+        Worker --> ScoutAgent[5. Creator Scout Agent\nParallel Search + Gemini]
+        Worker --> SyncerAgent[6. Media Syncer Agent\nFFmpeg Alignment]
+    end
 
-```python
-storyboard_agent.run(...)
-```
+    subgraph Storyboard_Pipeline [Storyboard Intelligence Pipeline]
+        ScriptAgent -.-> Research[Parallel Web Reference Search]
+        Research --> Vision[Gemini Multimodal Frame Analysis]
+        Vision --> Grammar[Visual Grammar Aggregator]
+        Grammar --> ShotPlan[Structured Shot Planning]
+        ShotPlan --> ProdPlan[Equipment & Constraints Planner]
+        ProdPlan --> Adaptation[Adapted Production Plan]
+        Adaptation --> ImageGen[Hugging Face FLUX Stills]
+    end
 
-from inside Script Suggestor.
-
-Instead:
-
-```text
-Agent
- ↓
-ProjectState
- ↓
-Orchestrator
- ↓
-Next Agent
+    subgraph Governance [Safety & State]
+        Worker --> Compliance[Compliance & Clearance Agent\nTraffic Light: Green / Yellow / Red]
+        Compliance -->|Yellow Alert| ApprovalModal[Human-in-the-Loop Approval Gate]
+        ApprovalModal -->|User Decision| DAG
+        Agents --> DB[(PostgreSQL / SQLite Database\nProjects, Jobs, BYTEA Media)]
+    end
 ```
 
 ---
 
-### Rule 2: Don't modify another agent's implementation
+## 🤖 Deep Google Gemini Integration
 
-If your agent needs something from another agent:
+Google Gemini powers the multimodal reasoning, structural parsing, visual analysis, and generation across the studio:
 
-1. Define the required data in a shared model.
-2. Discuss the interface.
-3. Let the orchestrator connect the workflow.
+### 1. Structured Script Generation (`Gemini 3.7 Flash`)
+Transforms open-ended creator concepts into production-ready schemas containing:
+* Narrative structure, hooks, core beats, and timing estimates.
+* Visual intent guidelines and audio mood descriptors.
+* Validated Pydantic models consumed downstream by the storyboard and audio engines.
 
----
+### 2. Multimodal Visual Reference Analysis (`Gemini Vision`)
+Analyzes real-world video frames and reference images discovered during research to extract:
+* **Camera decisions:** Shot size (extreme close-up to extreme wide), camera angle, pan/tilt/dolly movements.
+* **Lighting & Color:** Key-to-fill ratios, color temperature, palette accents, high-contrast chiaroscuro.
+* **Composition:** Subject placement, depth of field, leading lines, and background density.
 
-### Rule 3: Shared model changes require coordination
+### 3. Visual Grammar Synthesis
+Aggregates reference findings into reusable stylistic rules (e.g. *"Centered low-angle framing, neon cyan accents on deep shadow, 2.39:1 anamorphic feel"*), ensuring shot-to-shot continuity.
 
-Changing:
+### 4. Production Planning & Constraint Adaptation
+Reasons over the creator's real-world equipment (e.g., smartphone vs. cinema rig, gimbal vs. tripod, solo operator vs. multi-crew) to translate ambitious cinematic shots into practical shooting steps without sacrificing creative vision.
 
-```text
-ScriptVersion
-ShotPlan
-SyncReport
-```
-
-can affect multiple agents.
-
-Discuss shared-model changes before merging.
-
----
-
-### Rule 4: Tools are shared infrastructure
-
-Gemini, Parallel, FFmpeg and other integrations belong under:
-
-```text
-shared/tools/
-```
-
-Don't duplicate API clients inside individual agents.
+### 5. AI Voiceover & Nuanced Pacing (`Gemini Flash TTS`)
+Synthesizes speech segments with timing control, adjusting speech rate and emotion to align with the script beat durations.
 
 ---
 
-### Rule 5: Agents should be independently testable
+## 🔎 Parallel: Live Web Intelligence for Production
 
-Every agent should eventually have:
+LLMs alone lack real-time web awareness. CreatorCrew integrates **Parallel Web Systems** to ground creative agents in live external knowledge:
 
-```text
-agent.py
-prompts.py
-schemas.py
-tests/
+```
+Script Beat Concept
+       │
+       ▼
+Parallel Search API  ───► Discovers current cinematic references, ads & real-world videos
+       │
+       ▼
+Parallel Extract API ───► Retrieves video URLs, metadata & visual assets
+       │
+       ▼
+FFmpeg Preprocessing ───► Extracts representative keyframes
+       │
+       ▼
+Gemini Vision        ───► Performs deep visual & compositional analysis
 ```
 
-The agent should be testable without running the entire cinematic pipeline.
+* **Live Reference Discovery:** Parallel searches live web and video sources for relevant creative references based on the script's theme.
+* **Cultural Context Research:** During multilingual dubbing, Parallel investigates local idioms, regional colloquialisms, and sensitive cultural context before transcreation.
+* **Compliance & Clearance Intelligence:** Parallel checks ownership, licensing terms, and fair-use boundaries for identified entities.
 
 ---
 
-# 18. Development Philosophy
+## ⚙️ The Specialized Agent Roster
 
-The project follows this pipeline:
-
-```text
-          INPUT
-            │
-            ▼
-       Agent Reasoning
-            │
-       ┌────┴────┐
-       ▼         ▼
-    Gemini    External Tools
-                 │
-       ┌─────────┴─────────┐
-       ▼                   ▼
-    Parallel          Media Tools
-       │                   │
-       └─────────┬─────────┘
-                 ▼
-             Structured
-               Output
-                 │
-                 ▼
-           ProjectState
-```
-
-The system should prefer:
-
-```text
-Structured output
-```
-
-over:
-
-```text
-Free-form LLM response
-```
-
-whenever the result is consumed by another component.
+| Agent | Responsibility | Core Tools & Models |
+| :--- | :--- | :--- |
+| **Script Suggestor** | Generates 3-act/3-beat structured narrative scripts with visual and audio intent. | Gemini 3.7 Flash, Pydantic |
+| **Storyboard & Visual** | Conducts reference research, derives visual grammar, drafts shot lists, adapts to gear constraints, and generates keyframe stills. | Parallel Search/Extract, Gemini Vision, Hugging Face FLUX.1 |
+| **Audio Master** | Produces timed voiceovers, cleans creator dialogue, and balances audio tracks. | Gemini TTS (`gemini-3.1-flash-tts-preview`), FFmpeg |
+| **Cultural Dubbing** | Localizes speech into target languages (e.g., Hindi, Spanish, Japanese) with cultural transcreation. | Parallel Task/Monitor, Gemini, Gemini TTS |
+| **Clearance / Compliance** | Evaluates scripts, visual assets, and audio for copyright, trademark, and safety risks. | Gemini Multimodal, Parallel Search, Clearance Rules |
+| **Creator Scout** | Discovers brand deals, sponsors, and collaborative opportunities aligned with the creator's profile. | Parallel Search, Gemini Reasoning |
+| **Media Syncer** | Calculates audio/video drift and aligns creator uploads with project timing. | FFmpeg, FFprobe |
 
 ---
 
-# 19. Cost / Efficiency Considerations
+## 🛡️ Human-in-the-Loop Compliance
 
-Gemini video processing is one of the more expensive parts of this architecture.
+Certain workflows require human oversight before proceeding:
 
-Therefore:
-
-### Sample when possible
-
-For visual questions:
-
-```text
-Video
- ↓
-Selected frames
- ↓
-Gemini
-```
-
-instead of:
-
-```text
-Entire video
- ↓
-Gemini
-```
-
-### Cache transcripts
-
-The same transcript can be useful to:
-
-* Syncer
-* Audio Segment Analyser
-* Cultural Dub
-
-The project plan explicitly recommends generating the transcript once and reusing it rather than repeatedly processing the same audio.
-
-### Use appropriate models
-
-Use cheaper/faster models for straightforward processing and reserve stronger multimodal reasoning for decisions that actually require it.
+* **GREEN:** Automated clearance passed; downstream stages execute automatically.
+* **YELLOW (Advisory Checkpoint):** Potential brand risk, commercial ambiguity, or cultural sensitivity detected. The engine pauses downstream DAG execution and raises a checkpoint.
+* **Human Approval Gate:** The creator reviews flagged issues in the UI and can approve, override, or edit the plan via `/projects/{id}/approve`.
+* **RED (Hard Block):** Explicit violation detected; the action is rejected with actionable remediation advice.
 
 ---
 
-# 20. Planned End-to-End Workflow
+## 🎯 Example End-to-End Creator Journey
 
-The intended high-level pipeline is:
-
-```text
-Creator / Project Brief
-          │
-          ▼
-     Creator Scout
-          │
-          ▼
-    Script Suggestor
-          │
-          ▼
-       Storyboard
-          │
-          ▼
-        Shoot
-          │
-          ▼
-        Syncer
-          │
-          ▼
-        Audio
-          │
-          ▼
-     Cultural Dub
-          │
-          ▼
-      Compliance
-          │
-          ▼
-       Final Output
-```
-
-The actual orchestrator may execute agents conditionally rather than strictly linearly.
-
-For example, compliance may run after individual stages rather than only once at the end.
-
-The project plan emphasizes running validation after each agent so problems can be caught while they are still fixable without requiring a reshoot.
+1. **Project Initiation:**
+   Creator inputs: *"Create a futuristic cyberpunk coffee brand ad with dark neon aesthetics."*
+2. **Script Generation:**
+   `ScriptAgent` generates a 3-beat script with hooks, pacing, and visual prompts.
+3. **Reference Research & Visual Grammar:**
+   `StoryboardAgent` queries **Parallel** for sci-fi coffee aesthetics, downloads reference frames, analyzes them with **Gemini Vision**, and builds a visual grammar guide.
+4. **Storyboard & Equipment Adaptation:**
+   The shot list is planned and adapted to the creator's equipment profile (`Smartphone + Tripod + Solo Creator`). **FLUX** generates keyframe stills for each beat.
+5. **Voiceover Synthesis:**
+   `AudioAgent` generates a timed voiceover track matching the script duration using **Gemini TTS**.
+6. **Cultural Localization:**
+   Creator requests: *"Translate the audio into Hindi."* `CulturalDubAgent` transcreates dialogue for regional impact and generates a localized audio track.
+7. **Asset Delivery:**
+   All assets (keyframes, audio masters, dub tracks, scripts) are persisted to the database and displayed in the studio dashboard.
 
 ---
 
-# 21. Final Product Output
+## 🏗️ Technology Stack
 
-The target product should ultimately provide creators with:
-
-```text
-🎨 Thumbnail variants
-🎬 Concept art
-📋 Storyboard panels
-🎥 Shot plan
-🎙️ Clean synchronized audio
-🌍 Localized / dubbed audio
-📝 Subtitles
-🔍 Compliance findings
-🔎 Creator / collaboration recommendations
-📚 Evidence-backed research
 ```
-
-The creator remains the final decision-maker.
-
-The system provides recommendations, generated assets and structured production intelligence rather than attempting to replace creative taste or decisions carrying legal/reputational consequences.
+┌────────────────────────────────────────────────────────────────────────┐
+│ FRONTEND                                                               │
+│ Next.js 14 (App Router) • React • Tailwind CSS • Lucide Icons          │
+│ Same-Origin Streaming API Proxy (Eliminates CORS & Inlined Secrets)   │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │ HTTP / JSON
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│ BACKEND & ORCHESTRATION                                                │
+│ FastAPI (Python 3.12) • Uvicorn • Pydantic v2 • Async Background Loop │
+│ Workflow DAG Engine • Chat Intent Router                               │
+└─────────────────┬─────────────────┬──────────────────┬─────────────────┘
+                  │                 │                  │
+                  ▼                 ▼                  ▼
+┌──────────────────┐ ┌───────────────────────────┐ ┌─────────────────────┐
+│ AI & REASONING   │ │ EXTERNAL TOOLS & MEDIA    │ │ PERSISTENCE         │
+│ Google Gemini    │ │ Parallel Web Systems      │ │ PostgreSQL (Render) │
+│ Gemini Vision    │ │ FFmpeg / FFprobe          │ │ SQLite (Local Dev)  │
+│ Gemini TTS       │ │ Hugging Face FLUX.1       │ │ Binary BYTEA Storage│
+└──────────────────┘ └───────────────────────────┘ └─────────────────────┘
+```
 
 ---
 
-# 22. Immediate Development Roadmap
+## 🚀 Local Development Setup
 
-### Phase 1: Foundation
+### 1. Prerequisites
+* Python 3.12+
+* Node.js 18+ and npm
+* FFmpeg installed and available on system `PATH`
+* API Keys: Google Gemini, Parallel, Hugging Face
 
-* [x] Repository structure
-* [x] Backend / frontend separation
-* [x] Shared models
-* [x] ProjectState
-* [x] Gemini integration
-* [x] Parallel Search integration
-* [x] Agent folder structure
+### 2. Environment Variables
 
-### Phase 2: Agent Framework
+Create `backend/.env`:
+```env
+# AI Models & Keys
+GEMINI_API_KEY="your-gemini-api-key"
+GEMINI_MODEL="gemini-3.7-flash"
+TTS_MODEL="gemini-3.1-flash-tts-preview"
 
-* [ ] Google ADK integration
-* [ ] Agent definitions
-* [ ] Agent tools
-* [ ] Structured outputs
-* [ ] Agent testing
+# Parallel Web Systems
+PARALLEL_API_KEY="your-parallel-api-key"
 
-### Phase 3: Core Agents
+# Hugging Face
+HF_TOKEN="your-huggingface-token"
+HF_IMAGE_MODEL="black-forest-labs/FLUX.1-schnell"
 
-* [ ] Script Suggestor
-* [ ] Storyboard
-* [ ] Syncer
-* [ ] Audio
-* [ ] Cultural Dub
-* [ ] Compliance
-* [ ] Creator Scout
+# Database (Leave blank for local SQLite fallback)
+DATABASE_URL=""
+```
 
-### Phase 4: Orchestration
+### 3. Running Backend
 
-* [ ] Workflow orchestration
-* [ ] ProjectState updates
-* [ ] Agent sequencing
-* [ ] Error handling
-* [ ] Retry logic
-* [ ] Validation between stages
+```bash
+cd backend
+python -m venv venv
+# Windows:
+.\venv\Scripts\activate
+# Linux/macOS:
+source venv/bin/activate
 
-### Phase 5: Media Pipeline
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+```
+Swagger API docs available at: `http://localhost:8000/docs`
 
-* [ ] FFprobe
-* [ ] FFmpeg
-* [ ] Frame extraction
-* [ ] Audio processing
-* [ ] Media staging
+### 4. Running Frontend
 
-### Phase 6: Frontend
-
-* [ ] Project creation
-* [ ] Agent workflow UI
-* [ ] Script interface
-* [ ] Storyboard interface
-* [ ] Media upload
-* [ ] Sync report
-* [ ] Audio / dub controls
-* [ ] Compliance report
-* [ ] Creator recommendations
-
-### Phase 7: Deployment
-
-* [ ] Cloud deployment
-* [ ] Agent Engine
-* [ ] Cloud Run
-* [ ] Cloud Storage
-* [ ] Secrets
-* [ ] Production testing
+```bash
+cd frontend
+npm install
+npm run dev
+```
+Open `http://localhost:3000` in your browser.
 
 ---
 
-# 23. Current Priority
+## 🧪 Testing
 
-The immediate priority is **not frontend development**.
+Run backend unit and integration tests:
 
-We first need to establish the agent framework:
-
-```text
-ADK
- ↓
-Agent
- ↓
-Tools
- ↓
-Structured Output
- ↓
-ProjectState
+```bash
+cd backend
+pytest tests/
 ```
-
-Then implement the agents individually.
-
-The first complete vertical slice should demonstrate that one agent can:
-
-```text
-Receive project state
-       ↓
-Reason with Gemini
-       ↓
-Use Parallel when required
-       ↓
-Produce structured output
-       ↓
-Update ProjectState
-```
-
-Once this pattern is stable, the remaining agents can follow the same architecture.
 
 ---
 
-# 🎬 Build Principle
+## 👥 Meet the Team
 
-> **One shared state. Specialized agents. Real tools. Evidence-backed reasoning. Deterministic execution.**
+* **Atharva Deokar**
+* **Mayank Chauhan**
+* **Asmiya Sayyad**
+* **Saur Deshmukh**
 
-Build agents independently, keep their interfaces structured, and let the orchestrator connect the pieces.
+---

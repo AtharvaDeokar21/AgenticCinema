@@ -2,7 +2,8 @@ const productionCard = [
   ["Agents in the company", "7"],
   ["Shared state object", "1"],
   ["Clearance passes per video", "6"],
-  ["Reasoning", "Gemini 3 Pro"],
+  ["Reasoning", "Gemini 3.6 Flash"],
+  ["Audio","Gemini TTS"],
   ["Web evidence", "Parallel"],
   ["Media execution", "FFmpeg"],
   ["Final cut", "Yours"],
@@ -30,7 +31,7 @@ export default function NowShowing() {
             <p>
               <strong>CreatorCrew staffs those jobs.</strong> Seven agents read one shared
               project state, do their piece, write it back, and hand off. No agent calls
-              another — an orchestrator sequences them, so any one of them can be replaced
+              another; an orchestrator sequences them, so any one of them can be replaced
               without touching the rest.
             </p>
             <p>

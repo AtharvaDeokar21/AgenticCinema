@@ -1,6 +1,6 @@
-# Agentic Cinema Backend — API Reference
+# CreatorCrew Backend — API Reference
 
-This document serves as the technical contract for the Agentic Cinema backend. It details every single API route registered in the system, its purpose, and its payloads.
+This document serves as the technical contract for the CreatorCrew backend. It details every single API route registered in the system, its purpose, and its payloads.
 
 ---
 

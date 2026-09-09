@@ -1,14 +1,10 @@
 export const crew = [
-  ["Reasoning & multimodal", "Gemini 3 Pro", "Ranking, transcreation, video-plus-audio judgement"],
-  ["Agent framework", "Google ADK", "Tools, structured output, Agent Engine runtime"],
+  ["Reasoning & multimodal", "Gemini 3.6 Flash", "Ranking, transcreation, video-plus-audio judgement"],
   ["Web intelligence", "Parallel", "Search, Extract, Task, FindAll, Entity Search, Monitor"],
   ["Speech", "Gemini Flash TTS", "Audio tags, multi-speaker, SynthID watermark kept intact"],
-  ["Voice across languages", "Chirp Instant Custom Voice", "Ten seconds of reference, with a stored consent record"],
-  ["Score & effects", "Lyria", "Generated beds, so there is no licence question"],
-  ["Stills", "Imagen", "Thumbnails, concept art, storyboard panels"],
   ["Media execution", "FFmpeg & FFprobe", "Probing, VFR conforming, frame extraction, every cut and mix"],
   ["Contracts", "Pydantic", "One shared ProjectState. Agents never pass loose dictionaries."],
-  ["Service", "FastAPI on Cloud Run", "With Cloud Storage for media staging"],
+  ["Service", "FastAPI on Render", "For media staging"],
 ];
 
 export const houseRules = [
