@@ -31,7 +31,6 @@ const STRIP_REQUEST = new Set([
 // Headers worth passing back so <img>, <audio> and download links behave.
 const KEEP_RESPONSE = [
   "content-type",
-  "content-length",
   "content-disposition",
   "accept-ranges",
   "content-range",

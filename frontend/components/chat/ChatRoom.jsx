@@ -2,7 +2,7 @@
 //path = frontend/components/chat/ChatRoom.jsx
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import Backdrop from "@/components/chat/Backdrop";
+import Backdrop from "@/components/chat/BackDrop";
 import Composer from "@/components/chat/Composer";
 import Message from "@/components/chat/Message";
 import { ensureProject, sendToCrew } from "@/lib/chatApi";
