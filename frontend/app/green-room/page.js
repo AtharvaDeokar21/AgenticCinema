@@ -4,7 +4,7 @@ import ChatRoom from "@/components/chat/ChatRoom";
 import "./green-room.css";
 
 export const metadata = {
-  title: "The Green Room — Agentic Cinema",
+  title: "The Green Room - Agentic Cinema",
   description:
     "Talk to the crew. Bring footage, a voice note, a still or a brief, and the job goes to whichever agent it belongs to.",
 };

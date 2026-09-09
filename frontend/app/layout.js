@@ -19,7 +19,7 @@ const sheet = Courier_Prime({
 });
 
 export const metadata = {
-  title: "CreatorCrew — seven agents, one crew",
+  title: "CreatorCrew: seven agents, one crew",
   description:
     "An agentic production studio for solo creators. Finds the deal, times the script, plans the shot, syncs the audio, dubs it, and clears the rights before it costs a reshoot.",
 };
